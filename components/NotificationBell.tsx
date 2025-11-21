@@ -42,18 +42,8 @@ export function NotificationBell() {
       console.log('📬 Notifications updated from Realtime Database:', notifs.length);
       setNotifications(notifs);
       
-      // Show browser notification for new unread notifications
-      if (Notification.permission === 'granted') {
-        const newUnread = notifs.filter(n => !n.isRead);
-        if (newUnread.length > 0 && newUnread[0].createdAt > Date.now() - 5000) {
-          // Only show browser notification if created in last 5 seconds
-          const latest = newUnread[0];
-          new Notification(latest.title, {
-            body: latest.message,
-            icon: '/icon-192x192.png',
-          });
-        }
-      }
+      // Note: Browser notifications are handled by FCM service worker
+      // No need to show duplicate notifications here
     });
 
     return () => {
