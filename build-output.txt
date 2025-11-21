@@ -1,0 +1,30 @@
+
+> travel-planner-fe@0.1.0 build
+> next build
+
+ ⚠ Warning: Next.js inferred your workspace root, but it may not be correct.
+ We detected multiple lockfiles and selected the directory of /Users/nhut/package-lock.json as the root directory.
+ To silence this warning, set `turbopack.root` in your Next.js config, or consider removing one of the lockfiles if it's not needed.
+   See https://nextjs.org/docs/app/api-reference/config/next-config-js/turbopack#root-directory for more information.
+ Detected additional lockfiles: 
+   * /Users/nhut/Documents/MyProject/Web/travel-expense-planner/travel-planner-fe/package-lock.json
+
+   ▲ Next.js 16.0.3 (Turbopack)
+   - Environments: .env.local
+
+   Creating an optimized production build ...
+ ✓ Compiled successfully in 3.6s
+   Running TypeScript ...
+Failed to compile.
+
+./app/trips/[id]/members/new/page-old.tsx:158:14
+Type error: JSX element 'form' has no corresponding closing tag.
+
+[0m [90m 156 |[39m
+ [90m 157 |[39m             {[90m/* Form */[39m}
+[31m[1m>[22m[39m[90m 158 |[39m             [33m<[39m[33mform[39m onSubmit[33m=[39m{handleSubmit(onSubmit)} className[33m=[39m[32m"space-y-6"[39m[33m>[39m
+ [90m     |[39m              [31m[1m^[22m[39m
+ [90m 159 |[39m               {[90m/* Email */[39m}
+ [90m 160 |[39m               [33m<[39m[33mdiv[39m[33m>[39m
+ [90m 161 |[39m                 [33m<[39m[33mlabel[39m className[33m=[39m[32m"block text-sm font-semibold text-gray-700 mb-2"[39m[33m>[39m[0m
+Next.js build worker exited with code: 1 and signal: null

@@ -1,4 +1,6 @@
-This is a [Next.js](https://nextjs.org) project bootstrapped with [`create-next-app`](https://nextjs.org/docs/app/api-reference/cli/create-next-app).
+# Travel Expense Planner - Frontend
+
+Modern web application for planning trips and managing expenses built with Next.js 14.
 
 ## Getting Started
 
