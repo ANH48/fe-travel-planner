@@ -9,6 +9,8 @@ import { z } from 'zod';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { tripsApi, itineraryApi } from '@/lib/api';
 import { LocationAutocomplete } from '@/components/LocationAutocomplete';
+import DatePicker from 'react-datepicker';
+import 'react-datepicker/dist/react-datepicker.css';
 import { 
   ArrowLeft, 
   Clock, 
@@ -112,6 +114,11 @@ export default function NewItineraryPage() {
             </div>
             <h1 className="text-4xl font-bold text-gray-900 mb-2">Add Itinerary</h1>
             <p className="text-gray-600 text-lg">Plan your daily activities and schedule</p>
+              {trip && (
+                <div className="mt-2 text-sm text-gray-500">
+                  <span className="font-medium">Trip dates:</span> {trip.startDate ? new Date(trip.startDate).toLocaleDateString('en-GB') : ''} - {trip.endDate ? new Date(trip.endDate).toLocaleDateString('en-GB') : ''}
+                </div>
+              )}
           </div>
 
           {/* Form Card */}
@@ -133,16 +140,26 @@ export default function NewItineraryPage() {
                   Date <span className="text-red-500">*</span>
                 </label>
                 <div className="relative">
+                  <Controller
+                    name="date"
+                    control={control}
+                    render={({ field }) => (
+                      <DatePicker
+                        selected={field.value ? new Date(field.value) : null}
+                        onChange={(date) => {
+                          field.onChange(date ? date.toISOString().split('T')[0] : '');
+                        }}
+                        dateFormat="yyyy-MM-dd"
+                        minDate={trip?.startDate ? new Date(trip.startDate) : undefined}
+                        maxDate={trip?.endDate ? new Date(trip.endDate) : undefined}
+                        className="w-full pl-12 pr-4 py-3 border-2 border-gray-200 rounded-xl focus:ring-2 focus:ring-purple-500 focus:border-purple-500 transition-all outline-none text-gray-900 cursor-pointer"
+                        placeholderText="Select a date"
+                      />
+                    )}
+                  />
                   <div className="absolute inset-y-0 left-0 pl-4 flex items-center pointer-events-none">
                     <Calendar className="h-5 w-5 text-gray-400" />
                   </div>
-                  <input
-                    {...register('date')}
-                    type="date"
-                    min={trip?.startDate?.split('T')[0]}
-                    max={trip?.endDate?.split('T')[0]}
-                    className="w-full pl-12 pr-4 py-3 border-2 border-gray-200 rounded-xl focus:ring-2 focus:ring-purple-500 focus:border-purple-500 transition-all outline-none text-gray-900"
-                  />
                 </div>
                 {errors.date && (
                   <p className="mt-2 text-sm text-red-600 flex items-center gap-1">

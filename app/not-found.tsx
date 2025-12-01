@@ -42,7 +42,7 @@ export default function NotFound() {
         <div className="flex flex-col sm:flex-row gap-4 justify-center items-center">
           <button
             onClick={() => window.history.back()}
-            className="group flex items-center gap-2 px-8 py-4 bg-white/20 backdrop-blur-sm text-white border-2 border-white/30 rounded-full font-bold text-lg hover:bg-white/30 transition-all duration-300 shadow-lg hover:scale-105"
+            className="mobile-icon-btn group flex items-center gap-2 px-8 py-4 bg-white/20 backdrop-blur-sm text-white border-2 border-white/30 rounded-full font-bold text-lg hover:bg-white/30 transition-all duration-300 shadow-lg hover:scale-105"
           >
             <ArrowLeft className="w-5 h-5 group-hover:-translate-x-1 transition-transform" />
             <span>Go Back</span>
@@ -50,7 +50,7 @@ export default function NotFound() {
 
           <Link
             href="/"
-            className="group flex items-center gap-2 px-8 py-4 bg-white text-purple-600 rounded-full font-bold text-lg hover:bg-gray-100 transition-all duration-300 shadow-xl hover:shadow-white/50 hover:scale-105"
+            className="mobile-icon-btn group flex items-center gap-2 px-8 py-4 bg-white text-purple-600 rounded-full font-bold text-lg hover:bg-gray-100 transition-all duration-300 shadow-xl hover:shadow-white/50 hover:scale-105"
           >
             <Home className="w-5 h-5" />
             <span>Go Home</span>

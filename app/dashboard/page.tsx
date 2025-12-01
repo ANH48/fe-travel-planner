@@ -21,6 +21,7 @@ import {
   Sparkles
 } from 'lucide-react';
 import { NotificationBell } from '@/components/NotificationBell';
+import { Avatar } from '@/components/OptimizedImage';
 
 // Safely format date
 const formatDate = (date: string | Date, formatStr: string = 'MMM d, yyyy') => {
@@ -112,17 +113,20 @@ export default function DashboardPage() {
             <div className="flex items-center gap-4">
               <NotificationBell />
               <div className="hidden sm:flex items-center gap-3 px-4 py-2 bg-gradient-to-r from-indigo-50 to-purple-50 rounded-full">
-                <div className="w-8 h-8 bg-gradient-to-br from-indigo-500 to-purple-600 rounded-full flex items-center justify-center text-white font-bold text-sm">
-                  {user?.name?.charAt(0).toUpperCase()}
-                </div>
+                <Avatar
+                  src={user?.avatar}
+                  alt={user?.name || 'User'}
+                  name={user?.name}
+                  size="sm"
+                />
                 <span className="text-gray-700 font-medium">{user?.name}</span>
               </div>
               <button
                 onClick={handleLogout}
-                className="flex items-center gap-2 px-4 py-2 text-red-600 hover:bg-red-50 rounded-xl transition-all duration-300 font-medium group"
+                className="mobile-icon-btn flex items-center gap-2 px-4 py-2 text-red-600 hover:bg-red-50 rounded-xl transition-all duration-300 font-medium group"
               >
                 <LogOut className="w-4 h-4 group-hover:rotate-12 transition-transform" />
-                <span className="hidden sm:inline">Logout</span>
+                <span>Logout</span>
               </button>
             </div>
           </div>
@@ -178,7 +182,7 @@ export default function DashboardPage() {
           <h3 className="text-2xl font-bold text-gray-900">Your Trips</h3>
           <Link
             href="/trips/new"
-            className="group flex items-center gap-2 px-6 py-3 bg-gradient-to-r from-indigo-600 to-purple-600 text-white rounded-xl font-bold hover:from-indigo-700 hover:to-purple-700 transition-all duration-300 shadow-lg hover:shadow-xl hover:scale-105"
+            className="mobile-icon-btn group flex items-center gap-2 px-6 py-3 bg-gradient-to-r from-indigo-600 to-purple-600 text-white rounded-xl font-bold hover:from-indigo-700 hover:to-purple-700 transition-all duration-300 shadow-lg hover:shadow-xl hover:scale-105"
           >
             <Plus className="w-5 h-5 group-hover:rotate-90 transition-transform" />
             <span>New Trip</span>
@@ -265,7 +269,7 @@ export default function DashboardPage() {
             </p>
             <Link
               href="/trips/new"
-              className="inline-flex items-center gap-2 px-8 py-4 bg-gradient-to-r from-indigo-600 to-purple-600 text-white rounded-xl font-bold hover:from-indigo-700 hover:to-purple-700 transition-all duration-300 shadow-lg hover:shadow-xl hover:scale-105"
+              className="mobile-icon-btn inline-flex items-center gap-2 px-8 py-4 bg-gradient-to-r from-indigo-600 to-purple-600 text-white rounded-xl font-bold hover:from-indigo-700 hover:to-purple-700 transition-all duration-300 shadow-lg hover:shadow-xl hover:scale-105"
             >
               <Plus className="w-5 h-5" />
               <span>Create Your First Trip</span>

@@ -140,10 +140,10 @@ export default function ExpenseTrackerPage() {
             
             <Link
               href={`/trips/${tripId}/expenses/new`}
-              className="flex items-center gap-2 px-4 py-2 bg-gradient-to-r from-green-600 to-emerald-600 text-white rounded-xl font-semibold hover:from-green-700 hover:to-emerald-700 transition-all shadow-lg"
+              className="mobile-icon-btn flex items-center gap-2 px-4 py-2 bg-gradient-to-r from-green-600 to-emerald-600 text-white rounded-xl font-semibold hover:from-green-700 hover:to-emerald-700 transition-all shadow-lg"
             >
               <Plus className="w-4 h-4" />
-              <span className="hidden sm:inline">Add Expense</span>
+              <span>Add Expense</span>
             </Link>
           </div>
         </div>

@@ -6,6 +6,9 @@ import Link from 'next/link';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { tripsApi, membersApi, expensesApi, settlementsApi, itineraryApi, invitationsApi } from '@/lib/api';
 import { format } from 'date-fns';
+import { LocationAutocomplete } from '@/components/LocationAutocomplete';
+import DatePicker from 'react-datepicker';
+import 'react-datepicker/dist/react-datepicker.css';
 import { 
   ArrowLeft, 
   MapPin, 
@@ -22,9 +25,18 @@ import {
   Receipt,
   BarChart3,
   CalendarDays,
-  Clock
+  Clock,
+  FileText,
+  Save,
+  X,
+  User
 } from 'lucide-react';
 import { NotificationBell } from '@/components/NotificationBell';
+import { ConfirmationDialog } from '@/components/ConfirmationDialog';
+import { Avatar } from '@/components/OptimizedImage';
+import { useForm, Controller } from 'react-hook-form';
+import { zodResolver } from '@hookform/resolvers/zod';
+import { z } from 'zod';
 
 // Format number to Vietnamese VNĐ
 const formatVND = (amount: number) => {
@@ -44,6 +56,47 @@ const formatDate = (date: string | Date, formatStr: string = 'MMM d, yyyy') => {
   }
 };
 
+// Format VND input (for form inputs)
+const formatVNDInput = (value: string) => {
+  const num = value.replace(/\D/g, '');
+  if (!num) return '';
+  return num.replace(/\B(?=(\d{3})+(?!\d))/g, '.');
+};
+
+// Parse Vietnamese format to number
+const parseVND = (value: string) => {
+  return parseFloat(value.replace(/\./g, '')) || 0;
+};
+
+// Itinerary form schema
+const itinerarySchema = z.object({
+  date: z.string().min(1, 'Date is required'),
+  startTime: z.string().min(1, 'Start time is required'),
+  endTime: z.string().min(1, 'End time is required'),
+  activity: z.string().min(3, 'Activity name must be at least 3 characters'),
+  location: z.string().optional(),
+  description: z.string().optional(),
+  category: z.string().min(1, 'Category is required'),
+});
+
+type ItineraryFormData = z.infer<typeof itinerarySchema>;
+
+// Expense form schema
+const expenseSchema = z.object({
+  description: z.string().min(3, 'Description must be at least 3 characters'),
+  amount: z.string().refine((val) => {
+    const numVal = parseFloat(val.replace(/\./g, ''));
+    return !isNaN(numVal) && numVal > 0;
+  }, {
+    message: 'Amount must be a positive number',
+  }),
+  date: z.string().min(1, 'Date is required'),
+  paidById: z.string().min(1, 'Please select who paid'),
+  category: z.string().min(1, 'Category is required'),
+});
+
+type ExpenseFormData = z.infer<typeof expenseSchema>;
+
 export default function TripDetailPage() {
   const params = useParams();
   const router = useRouter();
@@ -51,6 +104,10 @@ export default function TripDetailPage() {
   const queryClient = useQueryClient();
   const tripId = params.id as string;
   const [activeTab, setActiveTab] = useState<'overview' | 'members' | 'expenses' | 'itinerary' | 'settlements'>('overview');
+  const [isItineraryModalOpen, setIsItineraryModalOpen] = useState(false);
+  const [isExpenseModalOpen, setIsExpenseModalOpen] = useState(false);
+  const [itineraryError, setItineraryError] = useState('');
+  const [expenseError, setExpenseError] = useState('');
 
   // Set active tab from URL query params
   useEffect(() => {
@@ -144,17 +201,201 @@ export default function TripDetailPage() {
     },
   });
 
-  const handleDeleteTrip = () => {
-    if (window.confirm('Are you sure you want to delete this trip? This action cannot be undone.')) {
+  // Create itinerary mutation
+  const createItineraryMutation = useMutation({
+    mutationFn: (data: ItineraryFormData) => itineraryApi.create(tripId, data),
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ['itinerary', tripId] });
+      setIsItineraryModalOpen(false);
+      resetItineraryForm();
+    },
+    onError: (err: any) => {
+      setItineraryError(err.response?.data?.message || 'Failed to add itinerary');
+    },
+  });
+
+  // Create expense mutation
+  const createExpenseMutation = useMutation({
+    mutationFn: (data: any) => expensesApi.create(tripId, data),
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ['expenses', tripId] });
+      queryClient.invalidateQueries({ queryKey: ['trip', tripId] });
+      setIsExpenseModalOpen(false);
+      resetExpenseForm();
+    },
+    onError: (err: any) => {
+      setExpenseError(err.response?.data?.message || 'Failed to add expense');
+    },
+  });
+
+  // Itinerary form setup
+  const {
+    register: registerItinerary,
+    handleSubmit: handleItinerarySubmit,
+    control: itineraryControl,
+    watch: watchItinerary,
+    reset: resetItineraryForm,
+    formState: { errors: itineraryErrors },
+  } = useForm<ItineraryFormData>({
+    resolver: zodResolver(itinerarySchema),
+  });
+
+  // Expense form setup
+  const {
+    register: registerExpense,
+    handleSubmit: handleExpenseSubmit,
+    control: expenseControl,
+    watch: watchExpense,
+    reset: resetExpenseForm,
+    formState: { errors: expenseErrors },
+  } = useForm<ExpenseFormData>({
+    resolver: zodResolver(expenseSchema),
+    defaultValues: {
+      date: new Date().toISOString().split('T')[0],
+      amount: '',
+    },
+  });
+
+  const expenseAmount = watchExpense('amount');
+  const totalExpenseAmount = parseVND(expenseAmount || '0');
+
+  const handleDeleteTrip = async () => {
+    const confirmed = await ConfirmationDialog({
+      title: 'Are you sure?',
+      text: 'You want to delete this trip? This action cannot be undone.',
+      icon: 'warning',
+      confirmButtonText: 'Yes, delete it',
+      cancelButtonText: 'Cancel',
+      confirmButtonColor: '#ef4444',
+      cancelButtonColor: '#6b7280'
+    });
+
+    if (confirmed) {
       deleteTripMutation.mutate();
     }
   };
 
-  const handleCancelInvitation = (invitationId: string, email: string) => {
-    if (window.confirm(`Are you sure you want to cancel the invitation for ${email}?`)) {
+  const handleCancelInvitation = async (invitationId: string, email: string) => {
+    const confirmed = await ConfirmationDialog({
+      title: 'Cancel invitation?',
+      text: `Are you sure you want to cancel the invitation for ${email}?`,
+      icon: 'question',
+      confirmButtonText: 'Yes, cancel',
+      cancelButtonText: 'Keep invitation',
+      confirmButtonColor: '#ef4444',
+      cancelButtonColor: '#6b7280'
+    });
+
+    if (confirmed) {
       cancelInvitationMutation.mutate(invitationId);
     }
   };
+
+  const handleDeleteItineraryItem = async (itemId: string, activityName: string) => {
+    const confirmed = await ConfirmationDialog({
+      title: 'Delete activity?',
+      text: `Are you sure you want to delete "${activityName}"?`,
+      icon: 'warning',
+      confirmButtonText: 'Yes, delete',
+      cancelButtonText: 'Cancel',
+      confirmButtonColor: '#ef4444',
+      cancelButtonColor: '#6b7280'
+    });
+
+    if (confirmed) {
+      deleteItineraryMutation.mutate(itemId);
+    }
+  };
+
+  // Itinerary form handlers
+  const onItinerarySubmit = async (data: ItineraryFormData) => {
+    setItineraryError('');
+    createItineraryMutation.mutate(data);
+  };
+
+  const openItineraryModal = () => {
+    setIsItineraryModalOpen(true);
+    setItineraryError('');
+    resetItineraryForm();
+  };
+
+  const closeItineraryModal = () => {
+    setIsItineraryModalOpen(false);
+    setItineraryError('');
+    resetItineraryForm();
+  };
+
+  // Expense form handlers
+  const onExpenseSubmit = async (data: ExpenseFormData) => {
+    try {
+      setExpenseError('');
+      
+      const totalAmount = parseVND(data.amount);
+      
+      // Build splits array - equal split among all members
+      const splits = members?.map((member: any) => ({
+        memberId: member.id,
+        amount: Math.floor(totalAmount / (members?.length || 1)),
+      }));
+      
+      // Adjust the last split to account for rounding
+      if (splits && splits.length > 0) {
+        const totalSplit = splits.reduce((sum: number, s: any) => sum + s.amount, 0);
+        const remainder = totalAmount - totalSplit;
+        splits[splits.length - 1].amount += remainder;
+      }
+      
+      const payload: any = {
+        description: data.description,
+        amount: totalAmount,
+        date: data.date,
+        paidById: data.paidById,
+        splits,
+      };
+      
+      // Add category if provided
+      if (data.category) {
+        payload.category = data.category;
+      }
+      
+      createExpenseMutation.mutate(payload);
+    } catch (err: any) {
+      setExpenseError(err.response?.data?.message || 'Failed to add expense');
+    }
+  };
+
+  const openExpenseModal = () => {
+    setIsExpenseModalOpen(true);
+    setExpenseError('');
+    resetExpenseForm();
+  };
+
+  const closeExpenseModal = () => {
+    setIsExpenseModalOpen(false);
+    setExpenseError('');
+    resetExpenseForm();
+  };
+
+  // Itinerary categories
+  const itineraryCategories = [
+    'Sightseeing',
+    'Food & Dining',
+    'Transportation',
+    'Activity',
+    'Shopping',
+    'Relaxation',
+    'Meeting',
+    'Other'
+  ];
+
+  // Expense categories
+  const expenseCategories = [
+    { value: 'FOOD', label: 'Food & Dining' },
+    { value: 'TRANSPORT', label: 'Transportation' },
+    { value: 'ACCOMMODATION', label: 'Accommodation' },
+    { value: 'ENTERTAINMENT', label: 'Entertainment' },
+    { value: 'OTHER', label: 'Other' },
+  ];
 
   if (tripLoading) {
     return (
@@ -200,23 +441,23 @@ export default function TripDetailPage() {
             <div className="flex items-center gap-2">
               <NotificationBell />
               {isCreator && (
-                <>
+                <div className="flex items-center gap-1">
                   <Link
                     href={`/trips/${tripId}/edit`}
-                    className="flex items-center gap-2 px-4 py-2 text-gray-700 hover:bg-gray-100 rounded-xl transition-all font-medium"
+                    className="mobile-icon-btn flex items-center gap-2 px-3 py-2 text-gray-700 hover:bg-gray-100 rounded-xl transition-all font-medium min-h-[44px]"
                   >
                     <Edit className="w-4 h-4" />
-                    <span className="hidden sm:inline">Edit</span>
+                    <span>Edit</span>
                   </Link>
                   <button
                     onClick={handleDeleteTrip}
                     disabled={deleteTripMutation.isPending}
-                    className="flex items-center gap-2 px-4 py-2 text-red-600 hover:bg-red-50 rounded-xl transition-all font-medium"
+                    className="mobile-icon-btn flex items-center gap-2 px-3 py-2 text-red-600 hover:bg-red-50 rounded-xl transition-all font-medium min-h-[44px] disabled:opacity-50"
                   >
                     <Trash2 className="w-4 h-4" />
-                    <span className="hidden sm:inline">Delete</span>
+                    <span>Delete</span>
                   </button>
-                </>
+                </div>
               )}
             </div>
           </div>
@@ -300,56 +541,61 @@ export default function TripDetailPage() {
 
         {/* Tabs */}
         <div className="bg-white/95 backdrop-blur-sm rounded-2xl border border-gray-200/50 shadow-sm mb-6 overflow-hidden">
-          <div className="flex border-b border-gray-200 overflow-x-auto">
+          <div className="flex border-b border-gray-200 overflow-x-auto scrollbar-hide">
             <button
               onClick={() => setActiveTab('overview')}
-              className={`flex-1 px-6 py-4 font-semibold transition-all whitespace-nowrap ${
+              className={`flex-1 px-4 py-4 font-semibold transition-all whitespace-nowrap min-w-[80px] min-h-[48px] flex flex-col md:flex-row items-center justify-center gap-1 md:gap-2 ${
                 activeTab === 'overview'
                   ? 'bg-gradient-to-r from-indigo-600 to-purple-600 text-white'
                   : 'text-gray-600 hover:bg-gray-50'
               }`}
             >
-              Overview
+              <BarChart3 className="w-5 h-5 md:w-4 md:h-4" />
+              <span className="hidden md:inline">Overview</span>
             </button>
             <button
               onClick={() => setActiveTab('itinerary')}
-              className={`flex-1 px-6 py-4 font-semibold transition-all whitespace-nowrap ${
+              className={`flex-1 px-4 py-4 font-semibold transition-all whitespace-nowrap min-w-[80px] min-h-[48px] flex flex-col md:flex-row items-center justify-center gap-1 md:gap-2 ${
                 activeTab === 'itinerary'
                   ? 'bg-gradient-to-r from-indigo-600 to-purple-600 text-white'
                   : 'text-gray-600 hover:bg-gray-50'
               }`}
             >
-              Itinerary
+              <CalendarDays className="w-5 h-5 md:w-4 md:h-4" />
+              <span className="hidden md:inline">Itinerary</span>
             </button>
             <button
               onClick={() => setActiveTab('members')}
-              className={`flex-1 px-6 py-4 font-semibold transition-all whitespace-nowrap ${
+              className={`flex-1 px-4 py-4 font-semibold transition-all whitespace-nowrap min-w-[100px] min-h-[48px] flex flex-col md:flex-row items-center justify-center gap-1 md:gap-2 ${
                 activeTab === 'members'
                   ? 'bg-gradient-to-r from-indigo-600 to-purple-600 text-white'
                   : 'text-gray-600 hover:bg-gray-50'
               }`}
             >
-              Members ({memberCount})
+              <Users className="w-5 h-5 md:w-4 md:h-4" />
+              <span className="hidden md:inline">Members ({memberCount})</span>
             </button>
             <button
               onClick={() => setActiveTab('expenses')}
-              className={`flex-1 px-6 py-4 font-semibold transition-all ${
+              className={`flex-1 px-4 py-4 font-semibold transition-all whitespace-nowrap min-w-[90px] min-h-[48px] flex flex-col md:flex-row items-center justify-center gap-1 md:gap-2 ${
                 activeTab === 'expenses'
                   ? 'bg-gradient-to-r from-indigo-600 to-purple-600 text-white'
                   : 'text-gray-600 hover:bg-gray-50'
               }`}
             >
-              Expenses ({expenses?.length || 0})
+              <Receipt className="w-5 h-5 md:w-4 md:h-4" />
+              <span className="hidden md:inline">Expenses ({expenses?.length || 0})</span>
             </button>
             <button
               onClick={() => setActiveTab('settlements')}
-              className={`flex-1 px-6 py-4 font-semibold transition-all ${
+              className={`flex-1 px-4 py-4 font-semibold transition-all whitespace-nowrap min-w-[100px] min-h-[48px] flex flex-col md:flex-row items-center justify-center gap-1 md:gap-2 ${
                 activeTab === 'settlements'
                   ? 'bg-gradient-to-r from-indigo-600 to-purple-600 text-white'
                   : 'text-gray-600 hover:bg-gray-50'
               }`}
             >
-              Settlements
+              <DollarSign className="w-5 h-5 md:w-4 md:h-4" />
+              <span className="hidden md:inline">Settlements</span>
             </button>
           </div>
         </div>
@@ -358,7 +604,7 @@ export default function TripDetailPage() {
         <div className="bg-white/95 backdrop-blur-sm rounded-2xl border border-gray-200/50 shadow-sm p-8">
           {activeTab === 'overview' && (
             <div>
-              <h2 className="text-2xl font-bold mb-6">Trip Overview</h2>
+              <h2 className="text-2xl font-bold text-gray-900 mb-6">Trip Overview</h2>
               <div className="space-y-4">
                 <div className="grid md:grid-cols-2 gap-6">
                   <div>
@@ -367,9 +613,12 @@ export default function TripDetailPage() {
                       <div className="space-y-2">
                         {members.slice(0, 3).map((member: any) => (
                           <div key={member.id} className="flex items-center gap-3 p-3 bg-gray-50 rounded-xl">
-                            <div className="w-10 h-10 bg-gradient-to-br from-indigo-500 to-purple-600 rounded-full flex items-center justify-center text-white font-bold">
-                              {member.name.charAt(0).toUpperCase()}
-                            </div>
+                            <Avatar
+                              src={member.avatar}
+                              alt={member.name}
+                              name={member.name}
+                              size="md"
+                            />
                             <div>
                               <p className="font-medium text-gray-900">{member.name}</p>
                               <p className="text-sm text-gray-500">{member.email}</p>
@@ -408,14 +657,14 @@ export default function TripDetailPage() {
           {activeTab === 'members' && (
             <div>
               <div className="flex justify-between items-center mb-6">
-                <h2 className="text-2xl font-bold">Members</h2>
+                <h2 className="text-2xl font-bold text-gray-900">Members</h2>
                 {isCreator && (
                   <Link
                     href={`/trips/${tripId}/members/new`}
-                    className="flex items-center gap-2 px-4 py-2 bg-gradient-to-r from-indigo-600 to-purple-600 text-white rounded-xl font-semibold hover:from-indigo-700 hover:to-purple-700 transition-all shadow-lg"
+                    className="mobile-icon-btn flex items-center gap-2 px-4 py-2 bg-gradient-to-r from-indigo-600 to-purple-600 text-white rounded-xl font-semibold hover:from-indigo-700 hover:to-purple-700 transition-all shadow-lg"
                   >
                     <UserPlus className="w-4 h-4" />
-                    Invite Member
+                    <span>Invite Member</span>
                   </Link>
                 )}
               </div>
@@ -440,9 +689,13 @@ export default function TripDetailPage() {
                           
                           return (
                             <div key={invitation.id} className="flex items-center gap-4 p-4 bg-amber-50 border border-amber-200 rounded-xl">
-                              <div className="w-12 h-12 bg-gradient-to-br from-amber-400 to-orange-500 rounded-full flex items-center justify-center text-white font-bold text-lg flex-shrink-0">
-                                {userName.charAt(0).toUpperCase()}
-                              </div>
+                              <Avatar
+                                src={invitation.invitedUser?.avatar}
+                                alt={userName}
+                                name={userName}
+                                size="lg"
+                                fallbackColor="from-amber-400 to-orange-500"
+                              />
                               <div className="flex-1 min-w-0">
                                 <p className="font-semibold text-gray-900">{userName}</p>
                                 <p className="text-sm text-gray-600 truncate">{userEmail}</p>
@@ -483,9 +736,12 @@ export default function TripDetailPage() {
                       <div className="grid md:grid-cols-2 gap-4">
                         {members.map((member: any) => (
                           <div key={member.id} className="flex items-center gap-4 p-4 bg-gray-50 rounded-xl hover:bg-gray-100 transition-colors">
-                            <div className="w-12 h-12 bg-gradient-to-br from-indigo-500 to-purple-600 rounded-full flex items-center justify-center text-white font-bold text-lg">
-                              {member.name.charAt(0).toUpperCase()}
-                            </div>
+                            <Avatar
+                              src={member.avatar}
+                              alt={member.name}
+                              name={member.name}
+                              size="md"
+                            />
                             <div className="flex-1">
                               <p className="font-semibold text-gray-900">{member.name}</p>
                               <p className="text-sm text-gray-500">{member.email}</p>
@@ -502,10 +758,10 @@ export default function TripDetailPage() {
                         {isCreator && (
                           <Link
                             href={`/trips/${tripId}/members/new`}
-                            className="inline-flex items-center gap-2 px-6 py-3 bg-gradient-to-r from-indigo-600 to-purple-600 text-white rounded-xl font-semibold hover:from-indigo-700 hover:to-purple-700 transition-all shadow-lg"
+                            className="mobile-icon-btn inline-flex items-center gap-2 px-6 py-3 bg-gradient-to-r from-indigo-600 to-purple-600 text-white rounded-xl font-semibold hover:from-indigo-700 hover:to-purple-700 transition-all shadow-lg"
                           >
                             <UserPlus className="w-4 h-4" />
-                            Invite First Member
+                            <span>Invite First Member</span>
                           </Link>
                         )}
                       </div>
@@ -519,14 +775,14 @@ export default function TripDetailPage() {
           {activeTab === 'itinerary' && (
             <div>
               <div className="flex justify-between items-center mb-6">
-                <h2 className="text-2xl font-bold">Trip Itinerary</h2>
-                <Link
-                  href={`/trips/${tripId}/itinerary/new`}
-                  className="flex items-center gap-2 px-4 py-2 bg-gradient-to-r from-purple-600 to-pink-600 text-white rounded-xl font-semibold hover:from-purple-700 hover:to-pink-700 transition-all shadow-lg"
+                <h2 className="text-2xl font-bold text-gray-900">Trip Itinerary</h2>
+                <button
+                  onClick={openItineraryModal}
+                  className="mobile-icon-btn flex items-center gap-2 px-4 py-2 bg-gradient-to-r from-purple-600 to-pink-600 text-white rounded-xl font-semibold hover:from-purple-700 hover:to-pink-700 transition-all shadow-lg"
                 >
                   <Plus className="w-4 h-4" />
-                  Add Activity
-                </Link>
+                  <span>Add Activity</span>
+                </button>
               </div>
               
               {itineraryLoading ? (
@@ -611,12 +867,8 @@ export default function TripDetailPage() {
                                         {item.category}
                                       </span>
                                       <button
-                                        onClick={() => {
-                                          if (window.confirm('Delete this activity?')) {
-                                            deleteItineraryMutation.mutate(item.id);
-                                          }
-                                        }}
-                                        className="opacity-0 group-hover:opacity-100 p-1 hover:bg-red-100 rounded-lg transition-all"
+                                        onClick={() => handleDeleteItineraryItem(item.id, item.activity)}
+                                        className="opacity-100 lg:opacity-0 group-hover:opacity-100 p-1 hover:bg-red-100 rounded-lg transition-all min-h-[32px] min-w-[32px] flex items-center justify-center"
                                       >
                                         <Trash2 className="w-4 h-4 text-red-600" />
                                       </button>
@@ -644,13 +896,13 @@ export default function TripDetailPage() {
                 <div className="text-center py-12 bg-gradient-to-br from-purple-50 to-pink-50 rounded-2xl border-2 border-dashed border-purple-300">
                   <CalendarDays className="w-12 h-12 text-purple-400 mx-auto mb-4" />
                   <p className="text-gray-500 mb-4">Start planning your daily activities</p>
-                  <Link
-                    href={`/trips/${tripId}/itinerary/new`}
-                    className="inline-flex items-center gap-2 px-6 py-3 bg-gradient-to-r from-purple-600 to-pink-600 text-white rounded-xl font-semibold hover:from-purple-700 hover:to-pink-700 transition-all shadow-lg"
+                  {/* <button
+                    onClick={openItineraryModal}
+                    className="mobile-icon-btn inline-flex items-center gap-2 px-6 py-3 bg-gradient-to-r from-purple-600 to-pink-600 text-white rounded-xl font-semibold hover:from-purple-700 hover:to-pink-700 transition-all shadow-lg"
                   >
                     <Plus className="w-4 h-4" />
-                    Add First Activity
-                  </Link>
+                    <span>Add First Activity</span>
+                  </button> */}
                 </div>
               )}
             </div>
@@ -659,22 +911,22 @@ export default function TripDetailPage() {
           {activeTab === 'expenses' && (
             <div>
               <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4 mb-6">
-                <h2 className="text-2xl font-bold">Expenses</h2>
+                <h2 className="text-2xl font-bold text-gray-900">Expenses</h2>
                 <div className="flex gap-2">
                   <Link
                     href={`/trips/${tripId}/expense-tracker`}
-                    className="flex items-center gap-2 px-4 py-2 bg-gradient-to-r from-blue-600 to-cyan-600 text-white rounded-xl font-semibold hover:from-blue-700 hover:to-cyan-700 transition-all shadow-lg"
+                    className="mobile-icon-btn flex items-center gap-2 px-4 py-2 bg-gradient-to-r from-blue-600 to-cyan-600 text-white rounded-xl font-semibold hover:from-blue-700 hover:to-cyan-700 transition-all shadow-lg"
                   >
                     <BarChart3 className="w-4 h-4" />
-                    <span className="hidden sm:inline">View Tracker</span>
+                    <span>View Tracker</span>
                   </Link>
-                  <Link
-                    href={`/trips/${tripId}/expenses/new`}
-                    className="flex items-center gap-2 px-4 py-2 bg-gradient-to-r from-indigo-600 to-purple-600 text-white rounded-xl font-semibold hover:from-indigo-700 hover:to-purple-700 transition-all shadow-lg"
+                  <button
+                    onClick={openExpenseModal}
+                    className="mobile-icon-btn flex items-center gap-2 px-4 py-2 bg-gradient-to-r from-indigo-600 to-purple-600 text-white rounded-xl font-semibold hover:from-indigo-700 hover:to-purple-700 transition-all shadow-lg"
                   >
                     <Plus className="w-4 h-4" />
-                    Add Expense
-                  </Link>
+                    <span>Add Expense</span>
+                  </button>
                 </div>
               </div>
               
@@ -713,13 +965,13 @@ export default function TripDetailPage() {
                 <div className="text-center py-12">
                   <Wallet className="w-12 h-12 text-gray-400 mx-auto mb-4" />
                   <p className="text-gray-500 mb-4">No expenses recorded yet</p>
-                  <Link
-                    href={`/trips/${tripId}/expenses/new`}
-                    className="inline-flex items-center gap-2 px-6 py-3 bg-gradient-to-r from-indigo-600 to-purple-600 text-white rounded-xl font-semibold hover:from-indigo-700 hover:to-purple-700 transition-all shadow-lg"
+                  <button
+                    onClick={openExpenseModal}
+                    className="mobile-icon-btn inline-flex items-center gap-2 px-6 py-3 bg-gradient-to-r from-indigo-600 to-purple-600 text-white rounded-xl font-semibold hover:from-indigo-700 hover:to-purple-700 transition-all shadow-lg"
                   >
                     <Plus className="w-4 h-4" />
-                    Add First Expense
-                  </Link>
+                    <span>Add First Expense</span>
+                  </button>
                 </div>
               )}
             </div>
@@ -728,13 +980,13 @@ export default function TripDetailPage() {
           {activeTab === 'settlements' && (
             <div>
               <div className="flex justify-between items-center mb-6">
-                <h2 className="text-2xl font-bold">Settlements</h2>
+                <h2 className="text-2xl font-bold text-gray-900">Settlements</h2>
                 <Link
                   href={`/trips/${tripId}/settlements`}
-                  className="flex items-center gap-2 px-4 py-2 bg-gradient-to-r from-indigo-600 to-purple-600 text-white rounded-xl font-semibold hover:from-indigo-700 hover:to-purple-700 transition-all shadow-lg"
+                  className="mobile-icon-btn flex items-center gap-2 px-4 py-2 bg-gradient-to-r from-indigo-600 to-purple-600 text-white rounded-xl font-semibold hover:from-indigo-700 hover:to-purple-700 transition-all shadow-lg"
                 >
                   <BarChart3 className="w-4 h-4" />
-                  View Details
+                  <span>View Details</span>
                 </Link>
               </div>
 
@@ -820,6 +1072,474 @@ export default function TripDetailPage() {
           )}
         </div>
       </div>
+
+      {/* Add Itinerary Modal */}
+      {isItineraryModalOpen && (
+        <div className="fixed inset-0 bg-black/50 backdrop-blur-sm flex items-center justify-center z-50 p-4">
+          <div className="bg-white rounded-3xl shadow-2xl max-w-2xl w-full max-h-[90vh] overflow-y-auto">
+            {/* Modal Header */}
+            <div className="flex items-center justify-between p-6 border-b border-gray-200">
+              <div className="flex items-center gap-3">
+                <div className="w-10 h-10 bg-gradient-to-br from-purple-500 to-pink-600 rounded-xl flex items-center justify-center">
+                  <CalendarDays className="w-5 h-5 text-white" />
+                </div>
+                <div>
+                  <h3 className="text-xl font-bold text-gray-900">Add Itinerary</h3>
+                  <p className="text-sm text-gray-600">Plan your daily activities</p>
+                </div>
+              </div>
+              <button
+                onClick={closeItineraryModal}
+                className="p-2 hover:bg-gray-100 rounded-lg transition-colors"
+              >
+                <X className="w-5 h-5 text-gray-500" />
+              </button>
+            </div>
+
+            {/* Modal Body */}
+            <div className="p-6">
+              {/* Error Message */}
+              {itineraryError && (
+                <div className="mb-6 p-4 bg-red-50 border border-red-200 text-red-700 rounded-xl flex items-start gap-3">
+                  <div className="flex-shrink-0 w-5 h-5 bg-red-500 rounded-full flex items-center justify-center text-white text-xs font-bold mt-0.5">
+                    !
+                  </div>
+                  <p className="text-sm">{itineraryError}</p>
+                </div>
+              )}
+
+              <form onSubmit={handleItinerarySubmit(onItinerarySubmit)} className="space-y-6">
+                {/* Date */}
+                <div>
+                  <label className="block text-sm font-semibold text-gray-700 mb-2">
+                    Date <span className="text-red-500">*</span>
+                  </label>
+                  <div className="relative">
+                    <div className="absolute inset-y-0 left-0 pl-4 flex items-center pointer-events-none">
+                      <Calendar className="h-5 w-5 text-gray-400" />
+                    </div>
+                    <Controller
+                      name="date"
+                      control={itineraryControl}
+                      render={({ field }) => (
+                        <DatePicker
+                          selected={field.value ? new Date(field.value) : null}
+                          onChange={(date) => field.onChange(date ? date.toISOString().split('T')[0] : '')}
+                          minDate={trip?.startDate ? new Date(trip.startDate) : undefined}
+                          maxDate={trip?.endDate ? new Date(trip.endDate) : undefined}
+                          dateFormat="yyyy-MM-dd"
+                          className="w-full pl-12 pr-4 py-3 border-2 border-gray-200 rounded-xl focus:ring-2 focus:ring-purple-500 focus:border-purple-500 transition-all outline-none text-gray-900"
+                          placeholderText="Select a date"
+                        />
+                      )}
+                    />
+                  </div>
+                  {itineraryErrors.date && (
+                    <p className="mt-2 text-sm text-red-600 flex items-center gap-1">
+                      <span className="w-1 h-1 bg-red-600 rounded-full"></span>
+                      {itineraryErrors.date.message}
+                    </p>
+                  )}
+                </div>
+
+                {/* Time Range */}
+                <div className="grid md:grid-cols-2 gap-6">
+                  {/* Start Time */}
+                  <div>
+                    <label className="block text-sm font-semibold text-gray-700 mb-2">
+                      Start Time <span className="text-red-500">*</span>
+                    </label>
+                    <div className="relative">
+                      <div className="absolute inset-y-0 left-0 pl-4 flex items-center pointer-events-none">
+                        <Clock className="h-5 w-5 text-gray-400" />
+                      </div>
+                      <input
+                        {...registerItinerary('startTime')}
+                        type="time"
+                        className="w-full pl-12 pr-4 py-3 border-2 border-gray-200 rounded-xl focus:ring-2 focus:ring-purple-500 focus:border-purple-500 transition-all outline-none text-gray-900"
+                      />
+                    </div>
+                    {itineraryErrors.startTime && (
+                      <p className="mt-2 text-sm text-red-600 flex items-center gap-1">
+                        <span className="w-1 h-1 bg-red-600 rounded-full"></span>
+                        {itineraryErrors.startTime.message}
+                      </p>
+                    )}
+                  </div>
+
+                  {/* End Time */}
+                  <div>
+                    <label className="block text-sm font-semibold text-gray-700 mb-2">
+                      End Time <span className="text-red-500">*</span>
+                    </label>
+                    <div className="relative">
+                      <div className="absolute inset-y-0 left-0 pl-4 flex items-center pointer-events-none">
+                        <Clock className="h-5 w-5 text-gray-400" />
+                      </div>
+                      <input
+                        {...registerItinerary('endTime')}
+                        type="time"
+                        className="w-full pl-12 pr-4 py-3 border-2 border-gray-200 rounded-xl focus:ring-2 focus:ring-purple-500 focus:border-purple-500 transition-all outline-none text-gray-900"
+                      />
+                    </div>
+                    {itineraryErrors.endTime && (
+                      <p className="mt-2 text-sm text-red-600 flex items-center gap-1">
+                        <span className="w-1 h-1 bg-red-600 rounded-full"></span>
+                        {itineraryErrors.endTime.message}
+                      </p>
+                    )}
+                  </div>
+                </div>
+
+                {/* Activity Name */}
+                <div>
+                  <label className="block text-sm font-semibold text-gray-700 mb-2">
+                    Activity Name <span className="text-red-500">*</span>
+                  </label>
+                  <div className="relative">
+                    <div className="absolute inset-y-0 left-0 pl-4 flex items-center pointer-events-none">
+                      <CalendarDays className="h-5 w-5 text-gray-400" />
+                    </div>
+                    <input
+                      {...registerItinerary('activity')}
+                      type="text"
+                      className="w-full pl-12 pr-4 py-3 border-2 border-gray-200 rounded-xl focus:ring-2 focus:ring-purple-500 focus:border-purple-500 transition-all outline-none text-gray-900 placeholder:text-gray-400"
+                      placeholder="e.g., Visit Eiffel Tower, Beach Day, Dinner at Restaurant"
+                    />
+                  </div>
+                  {itineraryErrors.activity && (
+                    <p className="mt-2 text-sm text-red-600 flex items-center gap-1">
+                      <span className="w-1 h-1 bg-red-600 rounded-full"></span>
+                      {itineraryErrors.activity.message}
+                    </p>
+                  )}
+                </div>
+
+                {/* Location */}
+                <div>
+                  <label className="block text-sm font-semibold text-gray-700 mb-2">
+                    Location (Optional)
+                  </label>
+                  <Controller
+                    name="location"
+                    control={itineraryControl}
+                    render={({ field }) => (
+                      <LocationAutocomplete
+                        value={field.value || ''}
+                        onChange={field.onChange}
+                        placeholder="e.g., Champ de Mars, 5 Avenue Anatole France"
+                      />
+                    )}
+                  />
+                </div>
+
+                {/* Category */}
+                <div>
+                  <label className="block text-sm font-semibold text-gray-700 mb-2">
+                    Category <span className="text-red-500">*</span>
+                  </label>
+                  <select
+                    {...registerItinerary('category')}
+                    className="w-full px-4 py-3 border-2 border-gray-200 rounded-xl focus:ring-2 focus:ring-purple-500 focus:border-purple-500 transition-all outline-none text-gray-900 appearance-none bg-white"
+                  >
+                    <option value="">Select a category</option>
+                    {itineraryCategories.map((cat) => (
+                      <option key={cat} value={cat}>
+                        {cat}
+                      </option>
+                    ))}
+                  </select>
+                  {itineraryErrors.category && (
+                    <p className="mt-2 text-sm text-red-600 flex items-center gap-1">
+                      <span className="w-1 h-1 bg-red-600 rounded-full"></span>
+                      {itineraryErrors.category.message}
+                    </p>
+                  )}
+                </div>
+
+                {/* Description */}
+                <div>
+                  <label className="block text-sm font-semibold text-gray-700 mb-2">
+                    Description (Optional)
+                  </label>
+                  <div className="relative">
+                    <div className="absolute top-3 left-0 pl-4 flex pointer-events-none">
+                      <FileText className="h-5 w-5 text-gray-400" />
+                    </div>
+                    <textarea
+                      {...registerItinerary('description')}
+                      rows={3}
+                      className="w-full pl-12 pr-4 py-3 border-2 border-gray-200 rounded-xl focus:ring-2 focus:ring-purple-500 focus:border-purple-500 transition-all outline-none text-gray-900 placeholder:text-gray-400 resize-none"
+                      placeholder="Add notes, booking details, or any other information..."
+                    />
+                  </div>
+                </div>
+
+                {/* Submit Buttons */}
+                <div className="flex flex-col sm:flex-row gap-4 pt-4">
+                  <button
+                    type="submit"
+                    disabled={createItineraryMutation.isPending}
+                    className="flex-1 flex items-center justify-center gap-2 py-3.5 bg-gradient-to-r from-purple-600 to-pink-600 text-white rounded-xl font-bold text-lg hover:from-purple-700 hover:to-pink-700 disabled:opacity-50 disabled:cursor-not-allowed transition-all duration-300 shadow-lg hover:shadow-xl hover:scale-[1.02] active:scale-[0.98]"
+                  >
+                    {createItineraryMutation.isPending ? (
+                      <>
+                        <Loader2 className="w-5 h-5 animate-spin" />
+                        <span>Adding Activity...</span>
+                      </>
+                    ) : (
+                      <>
+                        <Save className="w-5 h-5" />
+                        <span>Add to Itinerary</span>
+                      </>
+                    )}
+                  </button>
+
+                  <button
+                    type="button"
+                    onClick={closeItineraryModal}
+                    className="flex-1 flex items-center justify-center gap-2 py-3.5 bg-gray-100 text-gray-700 rounded-xl font-bold text-lg hover:bg-gray-200 transition-all duration-300"
+                  >
+                    Cancel
+                  </button>
+                </div>
+              </form>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* Add Expense Modal */}
+      {isExpenseModalOpen && (
+        <div className="fixed inset-0 bg-black/50 backdrop-blur-sm flex items-center justify-center z-50 p-4">
+          <div className="bg-white rounded-3xl shadow-2xl max-w-2xl w-full max-h-[90vh] overflow-y-auto">
+            {/* Modal Header */}
+            <div className="flex items-center justify-between p-6 border-b border-gray-200">
+              <div className="flex items-center gap-3">
+                <div className="w-10 h-10 bg-gradient-to-br from-green-500 to-emerald-600 rounded-xl flex items-center justify-center">
+                  <Wallet className="w-5 h-5 text-white" />
+                </div>
+                <div>
+                  <h3 className="text-xl font-bold text-gray-900">Add Expense</h3>
+                  <p className="text-sm text-gray-600">Record a new expense for this trip</p>
+                </div>
+              </div>
+              <button
+                onClick={closeExpenseModal}
+                className="p-2 hover:bg-gray-100 rounded-lg transition-colors"
+              >
+                <X className="w-5 h-5 text-gray-500" />
+              </button>
+            </div>
+
+            {/* Modal Body */}
+            <div className="p-6">
+              {/* Error Message */}
+              {expenseError && (
+                <div className="mb-6 p-4 bg-red-50 border border-red-200 text-red-700 rounded-xl flex items-start gap-3">
+                  <div className="flex-shrink-0 w-5 h-5 bg-red-500 rounded-full flex items-center justify-center text-white text-xs font-bold mt-0.5">
+                    !
+                  </div>
+                  <p className="text-sm">{expenseError}</p>
+                </div>
+              )}
+
+              <form onSubmit={handleExpenseSubmit(onExpenseSubmit)} className="space-y-6">
+                {/* Description */}
+                <div>
+                  <label className="block text-sm font-semibold text-gray-700 mb-2">
+                    Description <span className="text-red-500">*</span>
+                  </label>
+                  <div className="relative">
+                    <div className="absolute inset-y-0 left-0 pl-4 flex items-center pointer-events-none">
+                      <FileText className="h-5 w-5 text-gray-400" />
+                    </div>
+                    <input
+                      {...registerExpense('description')}
+                      type="text"
+                      className="w-full pl-12 pr-4 py-3 border-2 border-gray-200 rounded-xl focus:ring-2 focus:ring-green-500 focus:border-green-500 transition-all outline-none text-gray-900 placeholder:text-gray-400"
+                      placeholder="e.g., Hotel booking, Dinner, Taxi"
+                    />
+                  </div>
+                  {expenseErrors.description && (
+                    <p className="mt-2 text-sm text-red-600 flex items-center gap-1">
+                      <span className="w-1 h-1 bg-red-600 rounded-full"></span>
+                      {expenseErrors.description.message}
+                    </p>
+                  )}
+                </div>
+
+                {/* Amount and Date */}
+                <div className="grid md:grid-cols-2 gap-6">
+                  {/* Amount */}
+                  <div>
+                    <label className="block text-sm font-semibold text-gray-700 mb-2">
+                      Amount (VNĐ) <span className="text-red-500">*</span>
+                    </label>
+                    <div className="relative">
+                      <div className="absolute inset-y-0 left-0 pl-4 flex items-center pointer-events-none">
+                        <DollarSign className="h-5 w-5 text-gray-400" />
+                      </div>
+                      <Controller
+                        name="amount"
+                        control={expenseControl}
+                        render={({ field }) => (
+                          <input
+                            type="text"
+                            inputMode="numeric"
+                            className="w-full pl-12 pr-4 py-3 border-2 border-gray-200 rounded-xl focus:ring-2 focus:ring-green-500 focus:border-green-500 transition-all outline-none text-gray-900 placeholder:text-gray-400"
+                            placeholder="0"
+                            value={field.value}
+                            onChange={(e) => {
+                              const formatted = formatVNDInput(e.target.value);
+                              field.onChange(formatted);
+                            }}
+                          />
+                        )}
+                      />
+                    </div>
+                    {expenseErrors.amount && (
+                      <p className="mt-2 text-sm text-red-600 flex items-center gap-1">
+                        <span className="w-1 h-1 bg-red-600 rounded-full"></span>
+                        {expenseErrors.amount.message}
+                      </p>
+                    )}
+                  </div>
+
+                  {/* Date */}
+                  <div>
+                    <label className="block text-sm font-semibold text-gray-700 mb-2">
+                      Date <span className="text-red-500">*</span>
+                    </label>
+                    <div className="relative">
+                      <Controller
+                        name="date"
+                        control={expenseControl}
+                        render={({ field }) => (
+                          <DatePicker
+                            selected={field.value ? new Date(field.value) : null}
+                            onChange={(date) => field.onChange(date ? date.toISOString().split('T')[0] : '')}
+                            minDate={trip?.startDate ? new Date(trip.startDate) : undefined}
+                            maxDate={trip?.endDate ? new Date(trip.endDate) : undefined}
+                            dateFormat="yyyy-MM-dd"
+                            className="w-full pl-12 pr-4 py-3 border-2 border-gray-200 rounded-xl focus:ring-2 focus:ring-green-500 focus:border-green-500 transition-all outline-none text-gray-900 cursor-pointer"
+                            placeholderText="Select a date"
+                          />
+                        )}
+                      />
+                      <div className="absolute inset-y-0 left-0 pl-4 flex items-center pointer-events-none">
+                        <Calendar className="h-5 w-5 text-gray-400" />
+                      </div>
+                    </div>
+                    {expenseErrors.date && (
+                      <p className="mt-2 text-sm text-red-600 flex items-center gap-1">
+                        <span className="w-1 h-1 bg-red-600 rounded-full"></span>
+                        {expenseErrors.date.message}
+                      </p>
+                    )}
+                  </div>
+                </div>
+
+                {/* Paid By */}
+                <div>
+                  <label className="block text-sm font-semibold text-gray-700 mb-2">
+                    Paid By <span className="text-red-500">*</span>
+                  </label>
+                  <div className="relative">
+                    <div className="absolute inset-y-0 left-0 pl-4 flex items-center pointer-events-none">
+                      <User className="h-5 w-5 text-gray-400" />
+                    </div>
+                    <select
+                      {...registerExpense('paidById')}
+                      className="w-full pl-12 pr-4 py-3 border-2 border-gray-200 rounded-xl focus:ring-2 focus:ring-green-500 focus:border-green-500 transition-all outline-none text-gray-900 appearance-none bg-white"
+                    >
+                      <option value="">Select a member</option>
+                      {members?.map((member: any) => (
+                        <option key={member.id} value={member.id}>
+                          {member.name}
+                        </option>
+                      ))}
+                    </select>
+                  </div>
+                  {expenseErrors.paidById && (
+                    <p className="mt-2 text-sm text-red-600 flex items-center gap-1">
+                      <span className="w-1 h-1 bg-red-600 rounded-full"></span>
+                      {expenseErrors.paidById.message}
+                    </p>
+                  )}
+                </div>
+
+                {/* Category */}
+                <div>
+                  <label className="block text-sm font-semibold text-gray-700 mb-2">
+                    Category <span className="text-red-500">*</span>
+                  </label>
+                  <select
+                    {...registerExpense('category')}
+                    className="w-full px-4 py-3 border-2 border-gray-200 rounded-xl focus:ring-2 focus:ring-green-500 focus:border-green-500 transition-all outline-none text-gray-900 appearance-none bg-white"
+                  >
+                    <option value="">Select a category</option>
+                    {expenseCategories.map((cat) => (
+                      <option key={cat.value} value={cat.value}>
+                        {cat.label}
+                      </option>
+                    ))}
+                  </select>
+                  {expenseErrors.category && (
+                    <p className="mt-2 text-sm text-red-600 flex items-center gap-1">
+                      <span className="w-1 h-1 bg-red-600 rounded-full"></span>
+                      {expenseErrors.category.message}
+                    </p>
+                  )}
+                </div>
+
+                {/* Split Info */}
+                <div className="bg-blue-50 border border-blue-200 rounded-xl p-4">
+                  <div className="flex gap-3">
+                    <Users className="w-5 h-5 text-blue-600 flex-shrink-0 mt-0.5" />
+                    <div className="text-sm text-blue-800">
+                      <p className="font-semibold mb-1">Expense Splitting</p>
+                      <p>
+                        This expense will be automatically split equally among all {members?.length || 0} trip members.
+                        Each member will owe {members && members.length > 0 ? formatVND(Math.floor(totalExpenseAmount / members.length)) : '0'} ₫.
+                      </p>
+                    </div>
+                  </div>
+                </div>
+
+                {/* Submit Buttons */}
+                <div className="flex flex-col sm:flex-row gap-4 pt-4">
+                  <button
+                    type="submit"
+                    disabled={createExpenseMutation.isPending}
+                    className="flex-1 flex items-center justify-center gap-2 py-3.5 bg-gradient-to-r from-green-600 to-emerald-600 text-white rounded-xl font-bold text-lg hover:from-green-700 hover:to-emerald-700 disabled:opacity-50 disabled:cursor-not-allowed transition-all duration-300 shadow-lg hover:shadow-xl hover:scale-[1.02] active:scale-[0.98]"
+                  >
+                    {createExpenseMutation.isPending ? (
+                      <>
+                        <Loader2 className="w-5 h-5 animate-spin" />
+                        <span>Adding Expense...</span>
+                      </>
+                    ) : (
+                      <>
+                        <Save className="w-5 h-5" />
+                        <span>Add Expense</span>
+                      </>
+                    )}
+                  </button>
+
+                  <button
+                    type="button"
+                    onClick={closeExpenseModal}
+                    className="flex-1 flex items-center justify-center gap-2 py-3.5 bg-gray-100 text-gray-700 rounded-xl font-bold text-lg hover:bg-gray-200 transition-all duration-300"
+                  >
+                    Cancel
+                  </button>
+                </div>
+              </form>
+            </div>
+          </div>
+        </div>
+      )}
     </div>
   );
 }

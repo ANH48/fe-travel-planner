@@ -1,12 +1,13 @@
 'use client';
 
 import { useState, useEffect, useRef } from 'react';
+import { useRouter } from 'next/navigation';
 import { useMutation, useQueryClient } from '@tanstack/react-query';
 import { Bell, Check, X, Clock } from 'lucide-react';
 import { invitationsApi, notificationsApi } from '@/lib/api';
 import { listenToNotifications } from '@/lib/firebase';
 import { useAuthStore } from '@/lib/store';
-import Swal from 'sweetalert2';
+import { ConfirmationDialog } from '@/components/ConfirmationDialog';
 
 interface Notification {
   id: string;
@@ -18,6 +19,15 @@ interface Notification {
     tripName?: string;
     invitationId?: string;
     inviterName?: string;
+    expenseId?: string;
+    amount?: number;
+    description?: string;
+    itineraryId?: string;
+    activity?: string;
+    location?: string;
+    date?: string;
+    startTime?: string;
+    createdBy?: string;
   };
   isRead: boolean;
   createdAt: number;
@@ -29,6 +39,7 @@ export function NotificationBell() {
   const dropdownRef = useRef<HTMLDivElement>(null);
   const queryClient = useQueryClient();
   const { user } = useAuthStore();
+  const router = useRouter();
 
   const unreadCount = notifications.filter(n => !n.isRead).length;
 
@@ -121,24 +132,29 @@ export function NotificationBell() {
 
   const handleClearAll = async () => {
     if (notifications.length === 0) return;
-    
-    const result = await Swal.fire({
+
+    const confirmed = await ConfirmationDialog({
       title: 'Clear all notifications?',
       text: `You are about to delete ${notifications.length} notification${notifications.length > 1 ? 's' : ''}`,
       icon: 'warning',
-      showCancelButton: true,
-      confirmButtonColor: '#3b82f6',
-      cancelButtonColor: '#6b7280',
       confirmButtonText: 'Yes, clear all',
-      cancelButtonText: 'Cancel'
+      cancelButtonText: 'Cancel',
+      confirmButtonColor: '#3b82f6',
+      cancelButtonColor: '#6b7280'
     });
 
-    if (result.isConfirmed) {
+    if (confirmed) {
       clearAllMutation.mutate();
     }
   };
 
-  const handleNotificationClick = async (notificationId: string) => {
+  const handleNotificationClick = async (notificationId: string, notification?: Notification) => {
+    // Handle navigation for specific notification types
+    if (notification?.type === 'ITINERARY_ADDED' && notification.data.tripId) {
+      router.push(`/trips/${notification.data.tripId}?tab=itinerary`);
+      setIsOpen(false); // Close dropdown
+    }
+
     // Optimistically update UI
     setNotifications(prev => 
       prev.map(n => 
@@ -223,7 +239,7 @@ export function NotificationBell() {
                 {notifications.map((notification) => (
                   <div
                     key={notification.id}
-                    onClick={() => handleNotificationClick(notification.id)}
+                    onClick={() => handleNotificationClick(notification.id, notification)}
                     className={`px-4 py-3 hover:bg-gray-50 transition-colors cursor-pointer ${
                       !notification.isRead ? 'bg-indigo-50/50' : 'bg-white'
                     }`}
@@ -239,12 +255,16 @@ export function NotificationBell() {
                           ? 'bg-red-100 text-red-600'
                           : notification.type === 'EXPENSE_ADDED'
                           ? 'bg-amber-100 text-amber-600'
+                          : notification.type === 'ITINERARY_ADDED'
+                          ? 'bg-purple-100 text-purple-600'
                           : 'bg-blue-100 text-blue-600'
                       }`}>
                         {notification.type === 'TRIP_INVITATION' && <Bell className="w-5 h-5" />}
                         {notification.type === 'MEMBER_JOINED' && <Check className="w-5 h-5" />}
                         {notification.type === 'INVITATION_CANCELLED' && <X className="w-5 h-5" />}
-                        {!['TRIP_INVITATION', 'MEMBER_JOINED', 'INVITATION_CANCELLED'].includes(notification.type) && <Bell className="w-5 h-5" />}
+                        {notification.type === 'EXPENSE_ADDED' && <Bell className="w-5 h-5" />}
+                        {notification.type === 'ITINERARY_ADDED' && <Clock className="w-5 h-5" />}
+                        {!['TRIP_INVITATION', 'MEMBER_JOINED', 'INVITATION_CANCELLED', 'EXPENSE_ADDED', 'ITINERARY_ADDED'].includes(notification.type) && <Bell className="w-5 h-5" />}
                       </div>
 
                       {/* Content */}
@@ -268,6 +288,25 @@ export function NotificationBell() {
                           <p className="text-xs text-gray-600 mb-2">
                             Trip: <span className="font-medium">{notification.data.tripName}</span>
                           </p>
+                        )}
+                        {notification.type === 'EXPENSE_ADDED' && notification.data.amount && (
+                          <p className="text-xs text-gray-600 mb-2">
+                            Amount: <span className="font-medium text-green-600">{notification.data.amount.toLocaleString()} ₫</span>
+                          </p>
+                        )}
+                        {notification.type === 'ITINERARY_ADDED' && (
+                          <div className="space-y-1">
+                            <p className="text-xs text-gray-600">
+                              Activity: <span className="font-medium">{notification.data.activity}</span>
+                              {notification.data.location && <span> at {notification.data.location}</span>}
+                            </p>
+                            {notification.data.date && (
+                              <p className="text-xs text-gray-600">
+                                Date: <span className="font-medium">{new Date(notification.data.date).toLocaleDateString()}</span>
+                                {notification.data.startTime && <span> at {notification.data.startTime}</span>}
+                              </p>
+                            )}
+                          </div>
                         )}
                         <div className="flex items-center gap-2 text-xs text-gray-500">
                           <Clock className="w-3 h-3" />

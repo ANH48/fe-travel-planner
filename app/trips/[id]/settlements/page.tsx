@@ -13,6 +13,8 @@ import {
   Wallet,
   RefreshCw
 } from 'lucide-react';
+import { ConfirmationDialog, ErrorDialog } from '@/components/ConfirmationDialog';
+import { Avatar } from '@/components/OptimizedImage';
 
 // Format VND
 const formatVND = (amount: number) => {
@@ -65,7 +67,11 @@ export default function SettlementsPage() {
       refetch();
     } catch (err: any) {
       console.error('Error recalculating settlements:', err);
-      alert(err.response?.data?.message || 'Failed to recalculate settlements');
+      await ErrorDialog({
+        title: 'Error',
+        text: err.response?.data?.message || 'Failed to recalculate settlements',
+        confirmButtonColor: '#3b82f6'
+      });
     }
   };
 
@@ -116,10 +122,10 @@ export default function SettlementsPage() {
               <div className="flex gap-3 items-start">
                 <button
                   onClick={handleRecalculate}
-                  className="flex items-center gap-2 px-4 py-2 bg-indigo-600 text-white rounded-lg hover:bg-indigo-700 transition-colors"
+                  className="mobile-icon-btn flex items-center gap-2 px-4 py-2 bg-indigo-600 text-white rounded-lg hover:bg-indigo-700 transition-colors"
                 >
                   <RefreshCw className="w-4 h-4" />
-                  Recalculate
+                  <span>Recalculate</span>
                 </button>
                 <div className="bg-gradient-to-br from-indigo-500 to-purple-600 text-white p-3 rounded-xl">
                   <Wallet className="w-8 h-8" />
@@ -170,9 +176,11 @@ export default function SettlementsPage() {
                 >
                   <div className="flex items-center justify-between">
                     <div className="flex items-center gap-4 flex-1">
-                      <div className="bg-gradient-to-br from-indigo-500 to-purple-600 text-white w-12 h-12 rounded-full flex items-center justify-center font-bold text-lg">
-                        {settlement.memberName.charAt(0).toUpperCase()}
-                      </div>
+                      <Avatar
+                        alt={settlement.memberName}
+                        name={settlement.memberName}
+                        size="md"
+                      />
                       <div>
                         <h3 className="text-lg font-bold text-gray-900 group-hover:text-indigo-600 transition-colors">
                           {settlement.memberName}

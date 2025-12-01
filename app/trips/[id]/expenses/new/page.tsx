@@ -7,7 +7,9 @@ import { useForm, Controller } from 'react-hook-form';
 import { zodResolver } from '@hookform/resolvers/zod';
 import { z } from 'zod';
 import { useQuery, useQueryClient } from '@tanstack/react-query';
-import { expensesApi, membersApi } from '@/lib/api';
+import { expensesApi, membersApi, tripsApi } from '@/lib/api';
+import DatePicker from 'react-datepicker';
+import 'react-datepicker/dist/react-datepicker.css';
 import { 
   ArrowLeft, 
   DollarSign, 
@@ -16,7 +18,8 @@ import {
   User,
   Loader2,
   Wallet,
-  Save
+  Save,
+  UserPlus
 } from 'lucide-react';
 
 const expenseSchema = z.object({
@@ -66,6 +69,15 @@ export default function NewExpensePage() {
     queryKey: ['members', tripId],
     queryFn: async () => {
       const response = await membersApi.getAll(tripId);
+      return response.data;
+    },
+  });
+
+  // Fetch trip data for date constraints
+  const { data: trip } = useQuery({
+    queryKey: ['trip', tripId],
+    queryFn: async () => {
+      const response = await tripsApi.getOne(tripId);
       return response.data;
     },
   });
@@ -210,9 +222,10 @@ export default function NewExpensePage() {
                 <p className="text-gray-600 mb-4">You need to add members first before adding expenses</p>
                 <Link
                   href={`/trips/${tripId}/members/new`}
-                  className="inline-flex items-center gap-2 px-6 py-3 bg-gradient-to-r from-blue-600 to-indigo-600 text-white rounded-xl font-bold hover:from-blue-700 hover:to-indigo-700 transition-all shadow-lg"
+                  className="mobile-icon-btn inline-flex items-center gap-2 px-6 py-3 bg-gradient-to-r from-blue-600 to-indigo-600 text-white rounded-xl font-bold hover:from-blue-700 hover:to-indigo-700 transition-all shadow-lg"
                 >
-                  Add Members
+                  <UserPlus className="w-5 h-5" />
+                  <span>Add Members</span>
                 </Link>
               </div>
             ) : (
@@ -284,14 +297,24 @@ export default function NewExpensePage() {
                       Date <span className="text-red-500">*</span>
                     </label>
                     <div className="relative">
+                      <Controller
+                        name="date"
+                        control={control}
+                        render={({ field }) => (
+                          <DatePicker
+                            selected={field.value ? new Date(field.value) : null}
+                            onChange={(date) => field.onChange(date ? date.toISOString().split('T')[0] : '')}
+                            minDate={trip?.startDate ? new Date(trip.startDate) : undefined}
+                            maxDate={trip?.endDate ? new Date(trip.endDate) : undefined}
+                            dateFormat="yyyy-MM-dd"
+                            className="w-full pl-12 pr-4 py-3 border-2 border-gray-200 rounded-xl focus:ring-2 focus:ring-green-500 focus:border-green-500 transition-all outline-none text-gray-900 cursor-pointer"
+                            placeholderText="Select a date"
+                          />
+                        )}
+                      />
                       <div className="absolute inset-y-0 left-0 pl-4 flex items-center pointer-events-none">
                         <Calendar className="h-5 w-5 text-gray-400" />
                       </div>
-                      <input
-                        {...register('date')}
-                        type="date"
-                        className="w-full pl-12 pr-4 py-3 border-2 border-gray-200 rounded-xl focus:ring-2 focus:ring-green-500 focus:border-green-500 transition-all outline-none text-gray-900"
-                      />
                     </div>
                     {errors.date && (
                       <p className="mt-2 text-sm text-red-600 flex items-center gap-1">

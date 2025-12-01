@@ -8,6 +8,9 @@ const inter = Inter({ subsets: ["latin"] });
 export const metadata: Metadata = {
   title: "Travel Expense Planner",
   description: "Plan your trips and manage expenses easily",
+  icons: {
+    icon: "/favicon.svg",
+  },
 };
 
 export default function RootLayout({
