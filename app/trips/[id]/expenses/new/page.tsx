@@ -10,9 +10,9 @@ import { useQuery, useQueryClient } from '@tanstack/react-query';
 import { expensesApi, membersApi, tripsApi } from '@/lib/api';
 import DatePicker from 'react-datepicker';
 import 'react-datepicker/dist/react-datepicker.css';
-import { 
-  ArrowLeft, 
-  DollarSign, 
+import {
+  ArrowLeft,
+  DollarSign,
   Calendar,
   FileText,
   User,
@@ -21,6 +21,7 @@ import {
   Save,
   UserPlus
 } from 'lucide-react';
+import { ExpenseSplitSelector } from '@/components/ExpenseSplitSelector';
 
 const expenseSchema = z.object({
   description: z.string().min(3, 'Description must be at least 3 characters'),
@@ -98,11 +99,6 @@ export default function NewExpensePage() {
 
   const amount = watch('amount');
   const totalAmount = parseVND(amount || '0');
-
-  // Calculate remaining amount for custom split
-  const getTotalCustomSplit = () => {
-    return Object.values(customSplits).reduce((sum, val) => sum + parseVND(val), 0);
-  };
 
   const onSubmit = async (data: ExpenseFormData) => {
     try {
@@ -372,109 +368,18 @@ export default function NewExpensePage() {
                   </select>
                 </div>
 
-                {/* Split Type */}
-                <div className="border-t-2 border-gray-200 pt-6">
-                  <label className="block text-sm font-semibold text-gray-700 mb-3">
-                    How to split this expense?
-                  </label>
-                  <div className="grid grid-cols-2 gap-4">
-                    <button
-                      type="button"
-                      onClick={() => {
-                        setSplitType('equal');
-                        setCustomSplits({});
-                      }}
-                      className={`p-4 rounded-xl border-2 transition-all ${
-                        splitType === 'equal'
-                          ? 'border-green-500 bg-green-50 text-green-900'
-                          : 'border-gray-200 hover:border-gray-300'
-                      }`}
-                    >
-                      <div className="font-semibold mb-1">Equal Split</div>
-                      <div className="text-xs text-gray-600">Divide equally among all members</div>
-                    </button>
-                    <button
-                      type="button"
-                      onClick={() => setSplitType('custom')}
-                      className={`p-4 rounded-xl border-2 transition-all ${
-                        splitType === 'custom'
-                          ? 'border-green-500 bg-green-50 text-green-900'
-                          : 'border-gray-200 hover:border-gray-300'
-                      }`}
-                    >
-                      <div className="font-semibold mb-1">Custom Split</div>
-                      <div className="text-xs text-gray-600">Set custom amount for each member</div>
-                    </button>
-                  </div>
-                </div>
-
-                {/* Custom Split Details */}
-                {splitType === 'custom' && members && members.length > 0 && (
-                  <div className="bg-gradient-to-r from-yellow-50 to-orange-50 rounded-2xl p-6 border-2 border-yellow-200">
-                    <h4 className="font-bold text-gray-900 mb-4 flex items-center gap-2">
-                      <User className="w-5 h-5 text-orange-600" />
-                      Set amount for each member
-                    </h4>
-                    <div className="space-y-3">
-                      {members.map((member: any) => (
-                        <div key={member.id} className="flex items-center gap-3">
-                          <div className="flex-1 flex items-center gap-3">
-                            <div className="w-10 h-10 bg-gradient-to-br from-orange-500 to-red-600 rounded-full flex items-center justify-center text-white font-bold">
-                              {member.name.charAt(0).toUpperCase()}
-                            </div>
-                            <span className="font-semibold text-gray-900">{member.name}</span>
-                          </div>
-                          <div className="w-48">
-                            <div className="relative">
-                              <div className="absolute inset-y-0 left-0 pl-3 flex items-center pointer-events-none">
-                                <DollarSign className="h-4 w-4 text-gray-400" />
-                              </div>
-                              <input
-                                type="text"
-                                inputMode="numeric"
-                                value={customSplits[member.id] || ''}
-                                onChange={(e) => {
-                                  const formatted = formatVND(e.target.value);
-                                  setCustomSplits(prev => ({
-                                    ...prev,
-                                    [member.id]: formatted
-                                  }));
-                                }}
-                                className="w-full pl-9 pr-12 py-2 border-2 border-gray-300 rounded-lg focus:ring-2 focus:ring-orange-500 focus:border-orange-500 outline-none text-gray-900"
-                                placeholder="0"
-                              />
-                              <div className="absolute inset-y-0 right-0 pr-3 flex items-center pointer-events-none">
-                                <span className="text-gray-500 text-sm">₫</span>
-                              </div>
-                            </div>
-                          </div>
-                        </div>
-                      ))}
-                    </div>
-                    
-                    {/* Split Summary */}
-                    <div className="mt-4 p-4 bg-white rounded-xl border border-orange-200">
-                      <div className="flex items-center justify-between mb-2">
-                        <span className="text-sm font-semibold text-gray-700">Total Split:</span>
-                        <span className="text-lg font-bold text-gray-900">{formatVNDNumber(getTotalCustomSplit())} ₫</span>
-                      </div>
-                      <div className="flex items-center justify-between mb-2">
-                        <span className="text-sm font-semibold text-gray-700">Expense Amount:</span>
-                        <span className="text-lg font-bold text-gray-900">{formatVNDNumber(totalAmount)} ₫</span>
-                      </div>
-                      <div className="flex items-center justify-between pt-2 border-t border-gray-200">
-                        <span className="text-sm font-semibold text-gray-700">Remaining:</span>
-                        <span className={`text-lg font-bold ${
-                          totalAmount - getTotalCustomSplit() === 0 
-                            ? 'text-green-600' 
-                            : 'text-red-600'
-                        }`}>
-                          {formatVNDNumber(Math.abs(totalAmount - getTotalCustomSplit()))} ₫
-                        </span>
-                      </div>
-                    </div>
-                  </div>
-                )}
+                {/* Expense Split Selector */}
+                <ExpenseSplitSelector
+                  members={members || []}
+                  totalAmount={totalAmount}
+                  splitType={splitType}
+                  customSplits={customSplits}
+                  onSplitTypeChange={setSplitType}
+                  onCustomSplitsChange={setCustomSplits}
+                  formatVND={formatVND}
+                  formatVNDNumber={formatVNDNumber}
+                  parseVND={parseVND}
+                />
 
                 {/* Submit Buttons */}
                 <div className="flex flex-col sm:flex-row gap-4 pt-4">

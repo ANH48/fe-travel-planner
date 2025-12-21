@@ -37,6 +37,7 @@ import { Avatar } from '@/components/OptimizedImage';
 import { useForm, Controller } from 'react-hook-form';
 import { zodResolver } from '@hookform/resolvers/zod';
 import { z } from 'zod';
+import { ExpenseSplitSelector } from '@/components/ExpenseSplitSelector';
 
 // Format number to Vietnamese VNĐ
 const formatVND = (amount: number) => {
@@ -108,6 +109,8 @@ export default function TripDetailPage() {
   const [isExpenseModalOpen, setIsExpenseModalOpen] = useState(false);
   const [itineraryError, setItineraryError] = useState('');
   const [expenseError, setExpenseError] = useState('');
+  const [expenseSplitType, setExpenseSplitType] = useState<'equal' | 'custom'>('equal');
+  const [expenseCustomSplits, setExpenseCustomSplits] = useState<{ [key: string]: string }>({});
 
   // Set active tab from URL query params
   useEffect(() => {
@@ -116,6 +119,48 @@ export default function TripDetailPage() {
       setActiveTab(tabParam as 'overview' | 'members' | 'expenses' | 'itinerary' | 'settlements');
     }
   }, [searchParams]);
+
+  // Handle notification received - refresh data if on members tab
+  const handleNotificationReceived = () => {
+    if (activeTab === 'members') {
+      console.log('📬 Notification received on members tab - refreshing data');
+      queryClient.invalidateQueries({ queryKey: ['members', tripId] });
+      queryClient.invalidateQueries({ queryKey: ['invitations', tripId] });
+      queryClient.invalidateQueries({ queryKey: ['trip', tripId] });
+    }
+  };
+
+  // Handle tab change and refetch data
+  const handleTabChange = (tab: 'overview' | 'members' | 'expenses' | 'itinerary' | 'settlements') => {
+    setActiveTab(tab);
+
+    // Refetch data based on the tab
+    switch (tab) {
+      case 'members':
+        queryClient.invalidateQueries({ queryKey: ['members', tripId] });
+        queryClient.invalidateQueries({ queryKey: ['invitations', tripId] });
+        break;
+      case 'expenses':
+        queryClient.invalidateQueries({ queryKey: ['expenses', tripId] });
+        break;
+      case 'itinerary':
+        queryClient.invalidateQueries({ queryKey: ['itinerary', tripId] });
+        break;
+      case 'settlements':
+        queryClient.invalidateQueries({ queryKey: ['settlements', tripId] });
+        break;
+      case 'overview':
+        // Refetch all data for overview
+        queryClient.invalidateQueries({ queryKey: ['members', tripId] });
+        queryClient.invalidateQueries({ queryKey: ['expenses', tripId] });
+        break;
+      default:
+        break;
+    }
+
+    // Always refetch trip data to get updated stats
+    queryClient.invalidateQueries({ queryKey: ['trip', tripId] });
+  };
 
   // Fetch trip details
   const { data: trip, isLoading: tripLoading } = useQuery({
@@ -329,22 +374,35 @@ export default function TripDetailPage() {
   const onExpenseSubmit = async (data: ExpenseFormData) => {
     try {
       setExpenseError('');
-      
+
       const totalAmount = parseVND(data.amount);
-      
-      // Build splits array - equal split among all members
-      const splits = members?.map((member: any) => ({
-        memberId: member.id,
-        amount: Math.floor(totalAmount / (members?.length || 1)),
-      }));
-      
-      // Adjust the last split to account for rounding
-      if (splits && splits.length > 0) {
-        const totalSplit = splits.reduce((sum: number, s: any) => sum + s.amount, 0);
-        const remainder = totalAmount - totalSplit;
-        splits[splits.length - 1].amount += remainder;
+
+      // Build splits array based on split type
+      let splits;
+      if (expenseSplitType === 'equal') {
+        // Equal split: divide amount equally among all members
+        const perPerson = Math.floor(totalAmount / (members?.length || 1));
+        const remainder = totalAmount - (perPerson * (members?.length || 1));
+
+        splits = members?.map((member: any, index: number) => ({
+          memberId: member.id,
+          // Add remainder to last person to ensure total matches
+          amount: index === members.length - 1 ? perPerson + remainder : perPerson,
+        }));
+      } else {
+        // Custom split
+        splits = Object.entries(expenseCustomSplits).map(([memberId, amount]) => ({
+          memberId,
+          amount: parseVND(amount),
+        }));
+
+        const totalSplit = splits.reduce((sum, s) => sum + s.amount, 0);
+        if (totalSplit !== totalAmount) {
+          setExpenseError(`Total split (${formatVND(totalSplit)} ₫) must equal expense amount (${formatVND(totalAmount)} ₫)`);
+          return;
+        }
       }
-      
+
       const payload: any = {
         description: data.description,
         amount: totalAmount,
@@ -352,12 +410,12 @@ export default function TripDetailPage() {
         paidById: data.paidById,
         splits,
       };
-      
+
       // Add category if provided
       if (data.category) {
         payload.category = data.category;
       }
-      
+
       createExpenseMutation.mutate(payload);
     } catch (err: any) {
       setExpenseError(err.response?.data?.message || 'Failed to add expense');
@@ -367,12 +425,16 @@ export default function TripDetailPage() {
   const openExpenseModal = () => {
     setIsExpenseModalOpen(true);
     setExpenseError('');
+    setExpenseSplitType('equal');
+    setExpenseCustomSplits({});
     resetExpenseForm();
   };
 
   const closeExpenseModal = () => {
     setIsExpenseModalOpen(false);
     setExpenseError('');
+    setExpenseSplitType('equal');
+    setExpenseCustomSplits({});
     resetExpenseForm();
   };
 
@@ -439,7 +501,7 @@ export default function TripDetailPage() {
             </Link>
             
             <div className="flex items-center gap-2">
-              <NotificationBell />
+              <NotificationBell onNotificationReceived={handleNotificationReceived} />
               {isCreator && (
                 <div className="flex items-center gap-1">
                   <Link
@@ -543,7 +605,7 @@ export default function TripDetailPage() {
         <div className="bg-white/95 backdrop-blur-sm rounded-2xl border border-gray-200/50 shadow-sm mb-6 overflow-hidden">
           <div className="flex border-b border-gray-200 overflow-x-auto scrollbar-hide">
             <button
-              onClick={() => setActiveTab('overview')}
+              onClick={() => handleTabChange('overview')}
               className={`flex-1 px-4 py-4 font-semibold transition-all whitespace-nowrap min-w-[80px] min-h-[48px] flex flex-col md:flex-row items-center justify-center gap-1 md:gap-2 ${
                 activeTab === 'overview'
                   ? 'bg-gradient-to-r from-indigo-600 to-purple-600 text-white'
@@ -554,7 +616,7 @@ export default function TripDetailPage() {
               <span className="hidden md:inline">Overview</span>
             </button>
             <button
-              onClick={() => setActiveTab('itinerary')}
+              onClick={() => handleTabChange('itinerary')}
               className={`flex-1 px-4 py-4 font-semibold transition-all whitespace-nowrap min-w-[80px] min-h-[48px] flex flex-col md:flex-row items-center justify-center gap-1 md:gap-2 ${
                 activeTab === 'itinerary'
                   ? 'bg-gradient-to-r from-indigo-600 to-purple-600 text-white'
@@ -565,7 +627,7 @@ export default function TripDetailPage() {
               <span className="hidden md:inline">Itinerary</span>
             </button>
             <button
-              onClick={() => setActiveTab('members')}
+              onClick={() => handleTabChange('members')}
               className={`flex-1 px-4 py-4 font-semibold transition-all whitespace-nowrap min-w-[100px] min-h-[48px] flex flex-col md:flex-row items-center justify-center gap-1 md:gap-2 ${
                 activeTab === 'members'
                   ? 'bg-gradient-to-r from-indigo-600 to-purple-600 text-white'
@@ -576,7 +638,7 @@ export default function TripDetailPage() {
               <span className="hidden md:inline">Members ({memberCount})</span>
             </button>
             <button
-              onClick={() => setActiveTab('expenses')}
+              onClick={() => handleTabChange('expenses')}
               className={`flex-1 px-4 py-4 font-semibold transition-all whitespace-nowrap min-w-[90px] min-h-[48px] flex flex-col md:flex-row items-center justify-center gap-1 md:gap-2 ${
                 activeTab === 'expenses'
                   ? 'bg-gradient-to-r from-indigo-600 to-purple-600 text-white'
@@ -587,7 +649,7 @@ export default function TripDetailPage() {
               <span className="hidden md:inline">Expenses ({expenses?.length || 0})</span>
             </button>
             <button
-              onClick={() => setActiveTab('settlements')}
+              onClick={() => handleTabChange('settlements')}
               className={`flex-1 px-4 py-4 font-semibold transition-all whitespace-nowrap min-w-[100px] min-h-[48px] flex flex-col md:flex-row items-center justify-center gap-1 md:gap-2 ${
                 activeTab === 'settlements'
                   ? 'bg-gradient-to-r from-indigo-600 to-purple-600 text-white'
@@ -1493,19 +1555,18 @@ export default function TripDetailPage() {
                   )}
                 </div>
 
-                {/* Split Info */}
-                <div className="bg-blue-50 border border-blue-200 rounded-xl p-4">
-                  <div className="flex gap-3">
-                    <Users className="w-5 h-5 text-blue-600 flex-shrink-0 mt-0.5" />
-                    <div className="text-sm text-blue-800">
-                      <p className="font-semibold mb-1">Expense Splitting</p>
-                      <p>
-                        This expense will be automatically split equally among all {members?.length || 0} trip members.
-                        Each member will owe {members && members.length > 0 ? formatVND(Math.floor(totalExpenseAmount / members.length)) : '0'} ₫.
-                      </p>
-                    </div>
-                  </div>
-                </div>
+                {/* Expense Split Selector */}
+                <ExpenseSplitSelector
+                  members={members || []}
+                  totalAmount={totalExpenseAmount}
+                  splitType={expenseSplitType}
+                  customSplits={expenseCustomSplits}
+                  onSplitTypeChange={setExpenseSplitType}
+                  onCustomSplitsChange={setExpenseCustomSplits}
+                  formatVND={formatVNDInput}
+                  formatVNDNumber={formatVND}
+                  parseVND={parseVND}
+                />
 
                 {/* Submit Buttons */}
                 <div className="flex flex-col sm:flex-row gap-4 pt-4">

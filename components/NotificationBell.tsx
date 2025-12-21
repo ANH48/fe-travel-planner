@@ -18,6 +18,7 @@ interface Notification {
     tripId?: string;
     tripName?: string;
     invitationId?: string;
+    invitationStatus?: string;
     inviterName?: string;
     expenseId?: string;
     amount?: number;
@@ -33,9 +34,14 @@ interface Notification {
   createdAt: number;
 }
 
-export function NotificationBell() {
+interface NotificationBellProps {
+  onNotificationReceived?: () => void;
+}
+
+export function NotificationBell({ onNotificationReceived }: NotificationBellProps = {}) {
   const [isOpen, setIsOpen] = useState(false);
   const [notifications, setNotifications] = useState<Notification[]>([]);
+  const [processedInvitations, setProcessedInvitations] = useState<Set<string>>(new Set());
   const dropdownRef = useRef<HTMLDivElement>(null);
   const queryClient = useQueryClient();
   const { user } = useAuthStore();
@@ -48,11 +54,16 @@ export function NotificationBell() {
     if (!user?.id) return;
 
     console.log('🔥 Setting up Realtime Database listener for user:', user.id);
-    
+
     const unsubscribe = listenToNotifications(user.id, (notifs) => {
       console.log('📬 Notifications updated from Realtime Database:', notifs.length);
       setNotifications(notifs);
-      
+
+      // Call the callback when new notifications are received
+      if (onNotificationReceived) {
+        onNotificationReceived();
+      }
+
       // Note: Browser notifications are handled by FCM service worker
       // No need to show duplicate notifications here
     });
@@ -60,7 +71,7 @@ export function NotificationBell() {
     return () => {
       unsubscribe();
     };
-  }, [user?.id]);
+  }, [user?.id, onNotificationReceived]);
 
   // Accept invitation mutation
   const acceptInvitationMutation = useMutation({
@@ -112,21 +123,39 @@ export function NotificationBell() {
 
   const handleAcceptInvitation = async (notificationId: string, invitationId: string) => {
     try {
+      // Mark invitation as processed immediately
+      setProcessedInvitations((prev) => new Set(prev).add(invitationId));
+
       await acceptInvitationMutation.mutateAsync(invitationId);
       // Remove notification from list
       setNotifications((prev) => prev.filter((n) => n.id !== notificationId));
     } catch (error) {
       console.error('Error accepting invitation:', error);
+      // Remove from processed set if error occurs
+      setProcessedInvitations((prev) => {
+        const newSet = new Set(prev);
+        newSet.delete(invitationId);
+        return newSet;
+      });
     }
   };
 
   const handleRejectInvitation = async (notificationId: string, invitationId: string) => {
     try {
+      // Mark invitation as processed immediately
+      setProcessedInvitations((prev) => new Set(prev).add(invitationId));
+
       await rejectInvitationMutation.mutateAsync(invitationId);
       // Remove notification from list
       setNotifications((prev) => prev.filter((n) => n.id !== notificationId));
     } catch (error) {
       console.error('Error rejecting invitation:', error);
+      // Remove from processed set if error occurs
+      setProcessedInvitations((prev) => {
+        const newSet = new Set(prev);
+        newSet.delete(invitationId);
+        return newSet;
+      });
     }
   };
 
@@ -314,30 +343,58 @@ export function NotificationBell() {
                         </div>
 
                         {/* Action Buttons for Invitations */}
-                        {notification.type === 'TRIP_INVITATION' && notification.data.invitationId && (
+                        {notification.type === 'TRIP_INVITATION' &&
+                          notification.data.invitationId &&
+                          !processedInvitations.has(notification.data.invitationId) &&
+                          (!notification.data.invitationStatus || notification.data.invitationStatus === 'PENDING') && (
                           <div className="flex gap-2 mt-3">
                             <button
                               onClick={(e) => {
                                 e.stopPropagation();
                                 handleAcceptInvitation(notification.id, notification.data.invitationId!);
                               }}
-                              disabled={acceptInvitationMutation.isPending}
-                              className="flex items-center gap-1 px-3 py-1.5 bg-indigo-600 text-white text-xs font-medium rounded-lg hover:bg-indigo-700 transition-colors disabled:opacity-50"
+                              disabled={acceptInvitationMutation.isPending || rejectInvitationMutation.isPending}
+                              className="flex items-center gap-1 px-3 py-1.5 bg-indigo-600 text-white text-xs font-medium rounded-lg hover:bg-indigo-700 transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
                             >
                               <Check className="w-3 h-3" />
-                              Accept
+                              {acceptInvitationMutation.isPending ? 'Accepting...' : 'Accept'}
                             </button>
                             <button
                               onClick={(e) => {
                                 e.stopPropagation();
                                 handleRejectInvitation(notification.id, notification.data.invitationId!);
                               }}
-                              disabled={rejectInvitationMutation.isPending}
-                              className="flex items-center gap-1 px-3 py-1.5 bg-gray-100 text-gray-700 text-xs font-medium rounded-lg hover:bg-gray-200 transition-colors disabled:opacity-50"
+                              disabled={acceptInvitationMutation.isPending || rejectInvitationMutation.isPending}
+                              className="flex items-center gap-1 px-3 py-1.5 bg-gray-100 text-gray-700 text-xs font-medium rounded-lg hover:bg-gray-200 transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
                             >
                               <X className="w-3 h-3" />
-                              Decline
+                              {rejectInvitationMutation.isPending ? 'Declining...' : 'Decline'}
                             </button>
+                          </div>
+                        )}
+
+                        {/* Show status message if invitation is already processed */}
+                        {notification.type === 'TRIP_INVITATION' &&
+                          notification.data.invitationStatus &&
+                          notification.data.invitationStatus !== 'PENDING' && (
+                          <div className="mt-3">
+                            <span className={`inline-flex items-center gap-1 px-3 py-1.5 text-xs font-medium rounded-lg ${
+                              notification.data.invitationStatus === 'ACCEPTED'
+                                ? 'bg-green-100 text-green-700'
+                                : 'bg-gray-100 text-gray-700'
+                            }`}>
+                              {notification.data.invitationStatus === 'ACCEPTED' ? (
+                                <>
+                                  <Check className="w-3 h-3" />
+                                  Already Accepted
+                                </>
+                              ) : (
+                                <>
+                                  <X className="w-3 h-3" />
+                                  Already Declined
+                                </>
+                              )}
+                            </span>
                           </div>
                         )}
                       </div>
