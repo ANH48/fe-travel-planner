@@ -55,6 +55,12 @@ export default function DashboardPage() {
     }
   }, [mounted, _hasHydrated, isAuthenticated, router]);
 
+  // Handle notification changes - refresh trips when invitation is accepted
+  const handleNotificationReceived = () => {
+    console.log('📬 Notification received on dashboard, refreshing trips...');
+    queryClient.invalidateQueries({ queryKey: ['trips'] });
+  };
+
   const { data: trips, isLoading } = useQuery({
     queryKey: ['trips'],
     queryFn: async () => {
@@ -113,7 +119,7 @@ export default function DashboardPage() {
             </div>
             
             <div className="flex items-center gap-4">
-              <NotificationBell />
+              <NotificationBell onNotificationReceived={handleNotificationReceived} />
               <div className="hidden sm:flex items-center gap-3 px-4 py-2 bg-gradient-to-r from-indigo-50 to-purple-50 rounded-full">
                 <Avatar
                   src={user?.avatar}
