@@ -3,7 +3,7 @@
 import { useEffect, useState } from 'react';
 import { useRouter } from 'next/navigation';
 import Link from 'next/link';
-import { useQuery } from '@tanstack/react-query';
+import { useQuery, useQueryClient } from '@tanstack/react-query';
 import { useAuthStore } from '@/lib/store';
 import { tripsApi, authApi } from '@/lib/api';
 import { useFcmToken } from '@/lib/useFcmToken';
@@ -38,6 +38,7 @@ const formatDate = (date: string | Date, formatStr: string = 'MMM d, yyyy') => {
 
 export default function DashboardPage() {
   const router = useRouter();
+  const queryClient = useQueryClient();
   const { user, isAuthenticated, logout, _hasHydrated } = useAuthStore();
   const [mounted, setMounted] = useState(false);
 
@@ -65,6 +66,7 @@ export default function DashboardPage() {
 
   const handleLogout = () => {
     logout();
+    queryClient.clear(); // Clear all cached queries when logging out
     router.push('/');
   };
 
