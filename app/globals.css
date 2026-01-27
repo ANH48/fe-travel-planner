@@ -171,9 +171,27 @@ body {
   }
 }
 
-/* Prevent body scroll when modal is open */
+/* Prevent body scroll when SweetAlert is open - keep scrollbar visible */
 body.swal2-shown {
   overflow: hidden;
+  padding-right: 0 !important; /* Prevent layout shift */
+}
+
+/* Modal overlay - full screen on iOS Safari */
+.modal-overlay {
+  position: fixed;
+  top: 0;
+  left: 0;
+  right: 0;
+  bottom: 0;
+  width: 100%;
+  height: 100%;
+  min-height: 100vh;
+  min-height: 100dvh;
+  min-height: -webkit-fill-available;
+  -webkit-backdrop-filter: blur(4px);
+  backdrop-filter: blur(4px);
+  overflow-y: auto;
   -webkit-overflow-scrolling: touch;
 }
 
@@ -620,5 +638,81 @@ body {
 
 .progressive-image img:not([loaded]) {
   opacity: 0;
+}
+
+/* Safari iOS time/date input fixes */
+input[type="time"],
+input[type="date"] {
+  -webkit-appearance: none;
+  appearance: none;
+  min-height: 48px;
+}
+
+/* Safari iOS specific fixes */
+@supports (-webkit-touch-callout: none) {
+  /* Time inputs - remove custom icon padding on Safari iOS */
+  input[type="time"] {
+    padding-left: 1rem !important;
+    text-align: left;
+  }
+
+  /* Hide the custom clock icon on Safari iOS since Safari has native picker */
+  .time-input-wrapper .time-icon {
+    display: none;
+  }
+
+  /* Adjust input without icon */
+  .time-input-wrapper input[type="time"] {
+    padding-left: 1rem;
+  }
+
+  /* Fix modal scroll behavior on Safari iOS */
+  .modal-scroll-container {
+    -webkit-overflow-scrolling: touch;
+    overflow-y: auto;
+    max-height: calc(100vh - 2rem);
+    max-height: calc(100dvh - 2rem);
+  }
+
+  /* Fix backdrop blur on Safari */
+  .backdrop-blur-sm {
+    -webkit-backdrop-filter: blur(4px);
+  }
+
+  /* Fix flexbox issues in Safari */
+  .safari-flex-fix {
+    min-height: 0;
+    min-width: 0;
+  }
+}
+
+/* Mobile Safari modal improvements */
+@media screen and (max-width: 768px) {
+  /* Use dynamic viewport height for modals */
+  .modal-container {
+    max-height: 100dvh;
+    max-height: -webkit-fill-available;
+  }
+
+  /* Better time input styling on mobile */
+  input[type="time"],
+  input[type="date"] {
+    font-size: 16px !important; /* Prevent zoom on iOS */
+    min-height: 48px;
+    padding: 0.75rem 1rem;
+  }
+
+  /* Stack time inputs vertically on small screens */
+  .time-inputs-grid {
+    grid-template-columns: 1fr !important;
+    gap: 1rem;
+  }
+}
+
+/* Fix for Safari iOS notch/safe area in modals */
+@supports (padding: env(safe-area-inset-bottom)) {
+  .modal-safe-area {
+    padding-bottom: env(safe-area-inset-bottom);
+  }
 }
 

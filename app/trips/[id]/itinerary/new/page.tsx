@@ -170,22 +170,17 @@ export default function NewItineraryPage() {
               </div>
 
               {/* Time Range */}
-              <div className="grid md:grid-cols-2 gap-6">
+              <div className="grid grid-cols-2 gap-4 time-inputs-grid">
                 {/* Start Time */}
                 <div>
                   <label className="block text-sm font-semibold text-gray-700 mb-2">
                     Start Time <span className="text-red-500">*</span>
                   </label>
-                  <div className="relative">
-                    <div className="absolute inset-y-0 left-0 pl-4 flex items-center pointer-events-none">
-                      <Clock className="h-5 w-5 text-gray-400" />
-                    </div>
-                    <input
-                      {...register('startTime')}
-                      type="time"
-                      className="w-full pl-12 pr-4 py-3 border-2 border-gray-200 rounded-xl focus:ring-2 focus:ring-purple-500 focus:border-purple-500 transition-all outline-none text-gray-900"
-                    />
-                  </div>
+                  <input
+                    {...register('startTime')}
+                    type="time"
+                    className="w-full px-4 py-3 border-2 border-gray-200 rounded-xl focus:ring-2 focus:ring-purple-500 focus:border-purple-500 transition-all outline-none text-gray-900 min-h-[48px]"
+                  />
                   {errors.startTime && (
                     <p className="mt-2 text-sm text-red-600 flex items-center gap-1">
                       <span className="w-1 h-1 bg-red-600 rounded-full"></span>
@@ -199,16 +194,11 @@ export default function NewItineraryPage() {
                   <label className="block text-sm font-semibold text-gray-700 mb-2">
                     End Time <span className="text-red-500">*</span>
                   </label>
-                  <div className="relative">
-                    <div className="absolute inset-y-0 left-0 pl-4 flex items-center pointer-events-none">
-                      <Clock className="h-5 w-5 text-gray-400" />
-                    </div>
-                    <input
-                      {...register('endTime')}
-                      type="time"
-                      className="w-full pl-12 pr-4 py-3 border-2 border-gray-200 rounded-xl focus:ring-2 focus:ring-purple-500 focus:border-purple-500 transition-all outline-none text-gray-900"
-                    />
-                  </div>
+                  <input
+                    {...register('endTime')}
+                    type="time"
+                    className="w-full px-4 py-3 border-2 border-gray-200 rounded-xl focus:ring-2 focus:ring-purple-500 focus:border-purple-500 transition-all outline-none text-gray-900 min-h-[48px]"
+                  />
                   {errors.endTime && (
                     <p className="mt-2 text-sm text-red-600 flex items-center gap-1">
                       <span className="w-1 h-1 bg-red-600 rounded-full"></span>

@@ -120,6 +120,36 @@ export default function TripDetailPage() {
     }
   }, [searchParams]);
 
+  // Lock body scroll when modal is open
+  useEffect(() => {
+    if (isItineraryModalOpen || isExpenseModalOpen) {
+      const scrollY = window.scrollY;
+      document.body.style.position = 'fixed';
+      document.body.style.top = `-${scrollY}px`;
+      document.body.style.left = '0';
+      document.body.style.right = '0';
+      document.body.style.overflow = 'hidden';
+    } else {
+      const scrollY = document.body.style.top;
+      document.body.style.position = '';
+      document.body.style.top = '';
+      document.body.style.left = '';
+      document.body.style.right = '';
+      document.body.style.overflow = '';
+      if (scrollY) {
+        window.scrollTo(0, parseInt(scrollY || '0') * -1);
+      }
+    }
+
+    return () => {
+      document.body.style.position = '';
+      document.body.style.top = '';
+      document.body.style.left = '';
+      document.body.style.right = '';
+      document.body.style.overflow = '';
+    };
+  }, [isItineraryModalOpen, isExpenseModalOpen]);
+
   // Handle notification received - refresh data if on members tab
   const handleNotificationReceived = () => {
     if (activeTab === 'members') {
@@ -1137,8 +1167,8 @@ export default function TripDetailPage() {
 
       {/* Add Itinerary Modal */}
       {isItineraryModalOpen && (
-        <div className="fixed inset-0 bg-black/50 backdrop-blur-sm flex items-center justify-center z-50 p-4">
-          <div className="bg-white rounded-3xl shadow-2xl max-w-2xl w-full max-h-[90vh] overflow-y-auto">
+        <div className="fixed top-0 left-0 right-0 bottom-0 min-h-screen min-h-[100dvh] bg-black/50 backdrop-blur-sm flex items-center justify-center z-50 p-4 modal-overlay">
+          <div className="bg-white rounded-3xl shadow-2xl max-w-2xl w-full max-h-[85vh] overflow-y-auto modal-scroll-container modal-safe-area">
             {/* Modal Header */}
             <div className="flex items-center justify-between p-6 border-b border-gray-200">
               <div className="flex items-center gap-3">
@@ -1205,22 +1235,17 @@ export default function TripDetailPage() {
                 </div>
 
                 {/* Time Range */}
-                <div className="grid md:grid-cols-2 gap-6">
+                <div className="grid grid-cols-2 gap-4 time-inputs-grid">
                   {/* Start Time */}
                   <div>
                     <label className="block text-sm font-semibold text-gray-700 mb-2">
                       Start Time <span className="text-red-500">*</span>
                     </label>
-                    <div className="relative">
-                      <div className="absolute inset-y-0 left-0 pl-4 flex items-center pointer-events-none">
-                        <Clock className="h-5 w-5 text-gray-400" />
-                      </div>
-                      <input
-                        {...registerItinerary('startTime')}
-                        type="time"
-                        className="w-full pl-12 pr-4 py-3 border-2 border-gray-200 rounded-xl focus:ring-2 focus:ring-purple-500 focus:border-purple-500 transition-all outline-none text-gray-900"
-                      />
-                    </div>
+                    <input
+                      {...registerItinerary('startTime')}
+                      type="time"
+                      className="w-full px-4 py-3 border-2 border-gray-200 rounded-xl focus:ring-2 focus:ring-purple-500 focus:border-purple-500 transition-all outline-none text-gray-900 min-h-[48px]"
+                    />
                     {itineraryErrors.startTime && (
                       <p className="mt-2 text-sm text-red-600 flex items-center gap-1">
                         <span className="w-1 h-1 bg-red-600 rounded-full"></span>
@@ -1234,16 +1259,11 @@ export default function TripDetailPage() {
                     <label className="block text-sm font-semibold text-gray-700 mb-2">
                       End Time <span className="text-red-500">*</span>
                     </label>
-                    <div className="relative">
-                      <div className="absolute inset-y-0 left-0 pl-4 flex items-center pointer-events-none">
-                        <Clock className="h-5 w-5 text-gray-400" />
-                      </div>
-                      <input
-                        {...registerItinerary('endTime')}
-                        type="time"
-                        className="w-full pl-12 pr-4 py-3 border-2 border-gray-200 rounded-xl focus:ring-2 focus:ring-purple-500 focus:border-purple-500 transition-all outline-none text-gray-900"
-                      />
-                    </div>
+                    <input
+                      {...registerItinerary('endTime')}
+                      type="time"
+                      className="w-full px-4 py-3 border-2 border-gray-200 rounded-xl focus:ring-2 focus:ring-purple-500 focus:border-purple-500 transition-all outline-none text-gray-900 min-h-[48px]"
+                    />
                     {itineraryErrors.endTime && (
                       <p className="mt-2 text-sm text-red-600 flex items-center gap-1">
                         <span className="w-1 h-1 bg-red-600 rounded-full"></span>
@@ -1373,7 +1393,7 @@ export default function TripDetailPage() {
 
       {/* Add Expense Modal */}
       {isExpenseModalOpen && (
-        <div className="fixed inset-0 bg-black/50 backdrop-blur-sm flex items-center justify-center z-50 p-4">
+        <div className="fixed top-0 left-0 right-0 bottom-0 min-h-screen min-h-[100dvh] bg-black/50 backdrop-blur-sm flex items-center justify-center z-50 p-4 modal-overlay">
           <div className="bg-white rounded-3xl shadow-2xl max-w-2xl w-full max-h-[90vh] overflow-y-auto">
             {/* Modal Header */}
             <div className="flex items-center justify-between p-6 border-b border-gray-200">
