@@ -4,7 +4,7 @@ import { useState, useEffect } from 'react';
 import { useRouter, useParams, useSearchParams } from 'next/navigation';
 import Link from 'next/link';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
-import { tripsApi, membersApi, expensesApi, settlementsApi, itineraryApi, invitationsApi } from '@/lib/api';
+import { tripsApi, membersApi, expensesApi, settlementsApi, itineraryApi, invitationsApi, authApi } from '@/lib/api';
 import { format } from 'date-fns';
 import { LocationAutocomplete } from '@/components/LocationAutocomplete';
 import DatePicker from 'react-datepicker';
@@ -38,6 +38,7 @@ import { useForm, Controller } from 'react-hook-form';
 import { zodResolver } from '@hookform/resolvers/zod';
 import { z } from 'zod';
 import { ExpenseSplitSelector } from '@/components/ExpenseSplitSelector';
+import { ItineraryItemCard } from '@/components/itinerary/ItineraryItemCard';
 
 // Format number to Vietnamese VNĐ
 const formatVND = (amount: number) => {
@@ -212,6 +213,18 @@ export default function TripDetailPage() {
 
   // Check if user is creator
   const isCreator = trip?.role === 'creator';
+
+  // Fetch current user info
+  const { data: me } = useQuery({
+    queryKey: ['auth-me'],
+    queryFn: async () => {
+      const response = await authApi.getMe();
+      return response.data;
+    },
+  });
+
+  // Get current user's member ID for permission checks
+  const currentUserMemberId = members?.find((m: any) => m.userId === me?.id)?.id;
 
   // Fetch pending invitations (only for trip creator)
   const { data: pendingInvitations, isLoading: invitationsLoading } = useQuery({
@@ -876,7 +889,7 @@ export default function TripDetailPage() {
                   <span>Add Activity</span>
                 </button>
               </div>
-              
+
               {itineraryLoading ? (
                 <div className="text-center py-8">
                   <Loader2 className="w-8 h-8 text-purple-600 animate-spin mx-auto" />
@@ -902,82 +915,19 @@ export default function TripDetailPage() {
                           <p className="text-sm text-gray-500">{formatDate(date, 'EEEE, MMM d, yyyy')}</p>
                         </div>
                       </div>
-                      
+
                       <div className="ml-6 pl-6 border-l-2 border-purple-200 space-y-4">
                         {items
                           .sort((a: any, b: any) => a.startTime.localeCompare(b.startTime))
-                          .map((item: any, index: number) => {
-                            const categoryStyles: any = {
-                              'Sightseeing': {
-                                bg: 'bg-gradient-to-r from-purple-50 to-purple-100',
-                                badge: 'bg-purple-200 text-purple-800',
-                              },
-                              'Food & Dining': {
-                                bg: 'bg-gradient-to-r from-orange-50 to-orange-100',
-                                badge: 'bg-orange-200 text-orange-800',
-                              },
-                              'Transportation': {
-                                bg: 'bg-gradient-to-r from-blue-50 to-blue-100',
-                                badge: 'bg-blue-200 text-blue-800',
-                              },
-                              'Activity': {
-                                bg: 'bg-gradient-to-r from-green-50 to-green-100',
-                                badge: 'bg-green-200 text-green-800',
-                              },
-                              'Shopping': {
-                                bg: 'bg-gradient-to-r from-pink-50 to-pink-100',
-                                badge: 'bg-pink-200 text-pink-800',
-                              },
-                              'Relaxation': {
-                                bg: 'bg-gradient-to-r from-teal-50 to-teal-100',
-                                badge: 'bg-teal-200 text-teal-800',
-                              },
-                              'Meeting': {
-                                bg: 'bg-gradient-to-r from-indigo-50 to-indigo-100',
-                                badge: 'bg-indigo-200 text-indigo-800',
-                              },
-                              'Other': {
-                                bg: 'bg-gradient-to-r from-gray-50 to-gray-100',
-                                badge: 'bg-gray-200 text-gray-800',
-                              },
-                            };
-                            const style = categoryStyles[item.category] || categoryStyles['Other'];
-                            
+                          .map((item: any) => {
+                            const canModify = isCreator || item.createdById === currentUserMemberId;
                             return (
-                              <div key={item.id} className="relative group">
-                                <div className="absolute -left-[29px] w-4 h-4 bg-purple-500 rounded-full border-4 border-white"></div>
-                                <div className={`${style.bg} rounded-xl p-4 hover:shadow-md transition-all`}>
-                                  <div className="flex items-start justify-between mb-2">
-                                    <div className="flex items-center gap-3">
-                                      <Clock className="w-5 h-5 text-purple-600" />
-                                      <span className="font-semibold text-purple-900">
-                                        {item.startTime} - {item.endTime}
-                                      </span>
-                                    </div>
-                                    <div className="flex items-center gap-2">
-                                      <span className={`text-xs px-3 py-1 ${style.badge} rounded-full font-semibold`}>
-                                        {item.category}
-                                      </span>
-                                      <button
-                                        onClick={() => handleDeleteItineraryItem(item.id, item.activity)}
-                                        className="opacity-100 lg:opacity-0 group-hover:opacity-100 p-1 hover:bg-red-100 rounded-lg transition-all min-h-[32px] min-w-[32px] flex items-center justify-center"
-                                      >
-                                        <Trash2 className="w-4 h-4 text-red-600" />
-                                      </button>
-                                    </div>
-                                  </div>
-                                  <h4 className="text-lg font-bold text-gray-900 mb-1">{item.activity}</h4>
-                                  {item.location && (
-                                    <div className="flex items-center gap-2 text-gray-600 text-sm mb-2">
-                                      <MapPin className="w-4 h-4" />
-                                      <span>{item.location}</span>
-                                    </div>
-                                  )}
-                                  {item.description && (
-                                    <p className="text-gray-600 text-sm">{item.description}</p>
-                                  )}
-                                </div>
-                              </div>
+                              <ItineraryItemCard
+                                key={item.id}
+                                item={item}
+                                canModify={canModify}
+                                onDelete={handleDeleteItineraryItem}
+                              />
                             );
                           })}
                       </div>
@@ -988,13 +938,13 @@ export default function TripDetailPage() {
                 <div className="text-center py-12 bg-gradient-to-br from-purple-50 to-pink-50 rounded-2xl border-2 border-dashed border-purple-300">
                   <CalendarDays className="w-12 h-12 text-purple-400 mx-auto mb-4" />
                   <p className="text-gray-500 mb-4">Start planning your daily activities</p>
-                  {/* <button
+                  <button
                     onClick={openItineraryModal}
                     className="mobile-icon-btn inline-flex items-center gap-2 px-6 py-3 bg-gradient-to-r from-purple-600 to-pink-600 text-white rounded-xl font-semibold hover:from-purple-700 hover:to-pink-700 transition-all shadow-lg"
                   >
                     <Plus className="w-4 h-4" />
                     <span>Add First Activity</span>
-                  </button> */}
+                  </button>
                 </div>
               )}
             </div>
@@ -1396,7 +1346,7 @@ export default function TripDetailPage() {
         <div className="fixed top-0 left-0 right-0 bottom-0 min-h-screen min-h-[100dvh] bg-black/50 backdrop-blur-sm flex items-center justify-center z-50 p-4 modal-overlay">
           <div className="bg-white rounded-3xl shadow-2xl max-w-2xl w-full max-h-[90vh] overflow-y-auto">
             {/* Modal Header */}
-            <div className="flex items-center justify-between p-6 border-b border-gray-200">
+            <div className="flex items-center justify-between p-6 border-b border-gray-200 sticky top-0 bg-white z-10">
               <div className="flex items-center gap-3">
                 <div className="w-10 h-10 bg-gradient-to-br from-green-500 to-emerald-600 rounded-xl flex items-center justify-center">
                   <Wallet className="w-5 h-5 text-white" />

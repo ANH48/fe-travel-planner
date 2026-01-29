@@ -130,3 +130,29 @@ export const settlementsApi = {
   recalculate: (tripId: string) =>
     api.post(`/trips/${tripId}/settlements/recalculate`),
 };
+
+// Itinerary Images API
+export const itineraryImagesApi = {
+  // Get ImageKit auth params for upload
+  getAuth: () => api.get('/itinerary/imagekit-auth'),
+
+  // Save image metadata after upload
+  create: (itineraryId: string, data: {
+    imageUrl: string;
+    imageKitFileId: string;
+    caption?: string;
+    displayOrder?: number;
+  }) => api.post(`/itinerary/${itineraryId}/images`, data),
+
+  // Get all images for itinerary
+  getAll: (itineraryId: string) =>
+    api.get(`/itinerary/${itineraryId}/images`),
+
+  // Update image caption/order
+  update: (imageId: string, data: { caption?: string; displayOrder?: number }) =>
+    api.put(`/itinerary/images/${imageId}`, data),
+
+  // Delete image
+  delete: (imageId: string) =>
+    api.delete(`/itinerary/images/${imageId}`),
+};
