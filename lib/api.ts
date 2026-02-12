@@ -34,13 +34,24 @@ api.interceptors.response.use(
 
 // Auth API
 export const authApi = {
-  register: (data: { email: string; password: string; name: string; code: string }) =>
-    api.post('/auth/register', data),
+  register: (data: {
+    email: string;
+    password: string;
+    name: string;
+    code: string;
+  }) => api.post('/auth/register', data),
   login: (data: { email: string; password: string }) =>
     api.post('/auth/login', data),
   getMe: () => api.get('/auth/me'),
   saveFcmToken: (token: string) => api.post('/auth/fcm-token', { token }),
   getFirebaseToken: () => api.get('/auth/firebase-token'),
+};
+
+// Profile API
+export const profileApi = {
+  updateAvatar: (avatar: string) => api.put('/auth/profile', { avatar }),
+  changePassword: (data: { currentPassword: string; newPassword: string }) =>
+    api.post('/auth/change-password', data),
 };
 
 // Verification API

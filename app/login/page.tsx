@@ -8,7 +8,16 @@ import { zodResolver } from '@hookform/resolvers/zod';
 import { z } from 'zod';
 import { authApi } from '@/lib/api';
 import { useAuthStore } from '@/lib/store';
-import { Mail, Lock, ArrowLeft, Loader2, Plane } from 'lucide-react';
+import {
+  Mail,
+  Lock,
+  ArrowLeft,
+  Loader2,
+  Plane,
+  ArrowRight,
+  ShieldCheck,
+  AlertCircle,
+} from 'lucide-react';
 
 const loginSchema = z.object({
   email: z.string().email('Invalid email address'),
@@ -39,50 +48,62 @@ export default function LoginPage() {
       const { user, token } = response.data;
       setAuth(user, token);
       router.push('/dashboard');
-    } catch (err: any) {
-      setError(err.response?.data?.message || 'Login failed');
+    } catch (err: unknown) {
+      const errorMessage =
+        err instanceof Error && 'response' in err
+          ? (err as { response?: { data?: { message?: string } } }).response
+              ?.data?.message
+          : 'Login failed';
+      setError(errorMessage || 'Login failed');
     } finally {
       setLoading(false);
     }
   };
 
   return (
-    <div className="min-h-screen bg-gradient-to-br from-indigo-500 via-purple-500 to-pink-500 relative overflow-hidden">
-      {/* Animated background shapes */}
-      <div className="absolute inset-0 overflow-hidden">
-        <div className="absolute -top-40 -right-40 w-80 h-80 bg-white/10 rounded-full blur-3xl animate-pulse"></div>
-        <div className="absolute top-1/2 -left-40 w-96 h-96 bg-white/10 rounded-full blur-3xl animate-pulse delay-1000"></div>
-        <div className="absolute bottom-0 right-1/4 w-72 h-72 bg-white/10 rounded-full blur-3xl animate-pulse delay-500"></div>
+    <div className="min-h-screen bg-slate-50 relative overflow-hidden">
+      {/* Subtle background pattern */}
+      <div className="absolute inset-0 overflow-hidden" aria-hidden="true">
+        <div className="absolute -top-40 -right-40 w-80 h-80 bg-blue-100 rounded-full blur-3xl opacity-60 motion-safe:animate-pulse" />
+        <div className="absolute top-1/2 -left-40 w-96 h-96 bg-blue-50 rounded-full blur-3xl opacity-50 motion-safe:animate-pulse" />
       </div>
 
       <div className="min-h-screen flex items-center justify-center px-4 relative z-10">
         <div className="w-full max-w-md">
           {/* Back to home button */}
-          <Link 
+          <Link
             href="/"
-            className="inline-flex items-center gap-2 text-white/90 hover:text-white mb-8 transition-colors group"
+            className="inline-flex items-center gap-2 text-slate-600 hover:text-blue-600 mb-8 transition-colors duration-200 cursor-pointer group"
+            aria-label="Go back to home page"
           >
-            <ArrowLeft className="w-5 h-5 group-hover:-translate-x-1 transition-transform" />
-            <span>Back to home</span>
+            <ArrowLeft className="w-5 h-5 group-hover:-translate-x-1 motion-safe:transition-transform duration-200" />
+            <span className="font-medium">Back to home</span>
           </Link>
 
           {/* Login Card */}
-          <div className="bg-white/95 backdrop-blur-xl rounded-3xl shadow-2xl p-8 md:p-10 border border-white/20">
+          <div className="bg-white rounded-2xl shadow-lg p-8 md:p-10 border border-slate-200">
             {/* Logo and Title */}
             <div className="text-center mb-8">
-              <div className="inline-flex items-center justify-center w-16 h-16 bg-gradient-to-br from-indigo-500 to-purple-600 rounded-2xl mb-4 shadow-lg">
-                <Plane className="w-8 h-8 text-white" />
+              <div className="inline-flex items-center justify-center w-16 h-16 bg-blue-600 rounded-2xl mb-4">
+                <Plane className="w-8 h-8 text-white" aria-hidden="true" />
               </div>
-              <h1 className="text-4xl font-bold text-gray-900 mb-2">Welcome Back</h1>
-              <p className="text-gray-600">Sign in to continue your journey</p>
+              <h1 className="text-3xl font-bold text-slate-900 mb-2">
+                Welcome Back
+              </h1>
+              <p className="text-slate-600">Sign in to continue your journey</p>
             </div>
 
             {/* Error Message */}
             {error && (
-              <div className="mb-6 p-4 bg-red-50 border border-red-200 text-red-700 rounded-xl flex items-start gap-3">
-                <div className="flex-shrink-0 w-5 h-5 bg-red-500 rounded-full flex items-center justify-center text-white text-xs font-bold mt-0.5">
-                  !
-                </div>
+              <div
+                className="mb-6 p-4 bg-red-50 border border-red-200 text-red-700 rounded-xl flex items-start gap-3"
+                role="alert"
+                aria-live="polite"
+              >
+                <AlertCircle
+                  className="w-5 h-5 flex-shrink-0 mt-0.5"
+                  aria-hidden="true"
+                />
                 <p className="text-sm">{error}</p>
               </div>
             )}
@@ -91,23 +112,40 @@ export default function LoginPage() {
             <form onSubmit={handleSubmit(onSubmit)} className="space-y-5">
               {/* Email Field */}
               <div>
-                <label className="block text-sm font-semibold text-gray-700 mb-2">
+                <label
+                  htmlFor="email"
+                  className="block text-sm font-semibold text-slate-700 mb-2"
+                >
                   Email Address
                 </label>
                 <div className="relative">
-                  <div className="absolute inset-y-0 left-0 pl-4 flex items-center pointer-events-none">
-                    <Mail className="h-5 w-5 text-gray-400" />
+                  <div
+                    className="absolute inset-y-0 left-0 pl-4 flex items-center pointer-events-none"
+                    aria-hidden="true"
+                  >
+                    <Mail className="h-5 w-5 text-slate-400" />
                   </div>
                   <input
                     {...register('email')}
+                    id="email"
                     type="email"
-                    className="w-full pl-12 pr-4 py-3 border-2 border-gray-200 rounded-xl focus:ring-2 focus:ring-purple-500 focus:border-purple-500 transition-all outline-none text-gray-900 placeholder:text-gray-400"
+                    autoComplete="email"
+                    aria-invalid={errors.email ? 'true' : 'false'}
+                    aria-describedby={errors.email ? 'email-error' : undefined}
+                    className="w-full pl-12 pr-4 py-3 border-2 border-slate-200 rounded-xl focus:ring-2 focus:ring-blue-500 focus:border-blue-500 transition-colors duration-200 outline-none text-slate-900 placeholder:text-slate-400"
                     placeholder="your@email.com"
                   />
                 </div>
                 {errors.email && (
-                  <p className="mt-2 text-sm text-red-600 flex items-center gap-1">
-                    <span className="w-1 h-1 bg-red-600 rounded-full"></span>
+                  <p
+                    id="email-error"
+                    className="mt-2 text-sm text-red-600 flex items-center gap-1.5"
+                    role="alert"
+                  >
+                    <span
+                      className="w-1 h-1 bg-red-600 rounded-full"
+                      aria-hidden="true"
+                    />
                     {errors.email.message}
                   </p>
                 )}
@@ -115,23 +153,42 @@ export default function LoginPage() {
 
               {/* Password Field */}
               <div>
-                <label className="block text-sm font-semibold text-gray-700 mb-2">
+                <label
+                  htmlFor="password"
+                  className="block text-sm font-semibold text-slate-700 mb-2"
+                >
                   Password
                 </label>
                 <div className="relative">
-                  <div className="absolute inset-y-0 left-0 pl-4 flex items-center pointer-events-none">
-                    <Lock className="h-5 w-5 text-gray-400" />
+                  <div
+                    className="absolute inset-y-0 left-0 pl-4 flex items-center pointer-events-none"
+                    aria-hidden="true"
+                  >
+                    <Lock className="h-5 w-5 text-slate-400" />
                   </div>
                   <input
                     {...register('password')}
+                    id="password"
                     type="password"
-                    className="w-full pl-12 pr-4 py-3 border-2 border-gray-200 rounded-xl focus:ring-2 focus:ring-purple-500 focus:border-purple-500 transition-all outline-none text-gray-900 placeholder:text-gray-400"
+                    autoComplete="current-password"
+                    aria-invalid={errors.password ? 'true' : 'false'}
+                    aria-describedby={
+                      errors.password ? 'password-error' : undefined
+                    }
+                    className="w-full pl-12 pr-4 py-3 border-2 border-slate-200 rounded-xl focus:ring-2 focus:ring-blue-500 focus:border-blue-500 transition-colors duration-200 outline-none text-slate-900 placeholder:text-slate-400"
                     placeholder="Enter your password"
                   />
                 </div>
                 {errors.password && (
-                  <p className="mt-2 text-sm text-red-600 flex items-center gap-1">
-                    <span className="w-1 h-1 bg-red-600 rounded-full"></span>
+                  <p
+                    id="password-error"
+                    className="mt-2 text-sm text-red-600 flex items-center gap-1.5"
+                    role="alert"
+                  >
+                    <span
+                      className="w-1 h-1 bg-red-600 rounded-full"
+                      aria-hidden="true"
+                    />
                     {errors.password.message}
                   </p>
                 )}
@@ -141,19 +198,21 @@ export default function LoginPage() {
               <button
                 type="submit"
                 disabled={loading}
-                className="w-full py-3.5 bg-gradient-to-r from-indigo-600 to-purple-600 text-white rounded-xl font-bold text-lg hover:from-indigo-700 hover:to-purple-700 disabled:opacity-50 disabled:cursor-not-allowed transition-all duration-300 shadow-lg hover:shadow-xl hover:scale-[1.02] active:scale-[0.98] flex items-center justify-center gap-2"
+                aria-busy={loading}
+                className="w-full py-3.5 bg-blue-600 text-white rounded-xl font-semibold text-lg hover:bg-blue-700 disabled:opacity-50 disabled:cursor-not-allowed transition-colors duration-200 flex items-center justify-center gap-2 cursor-pointer focus:ring-2 focus:ring-blue-500 focus:ring-offset-2"
               >
                 {loading ? (
                   <>
-                    <Loader2 className="w-5 h-5 animate-spin" />
+                    <Loader2
+                      className="w-5 h-5 animate-spin"
+                      aria-hidden="true"
+                    />
                     <span>Signing in...</span>
                   </>
                 ) : (
                   <>
                     <span>Sign In</span>
-                    <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M13 7l5 5m0 0l-5 5m5-5H6" />
-                    </svg>
+                    <ArrowRight className="w-5 h-5" aria-hidden="true" />
                   </>
                 )}
               </button>
@@ -161,11 +220,11 @@ export default function LoginPage() {
 
             {/* Sign Up Link */}
             <div className="mt-8 text-center">
-              <p className="text-gray-600">
-                Don't have an account?{' '}
-                <Link 
-                  href="/register" 
-                  className="text-purple-600 font-bold hover:text-purple-700 hover:underline transition-colors"
+              <p className="text-slate-600">
+                Don&apos;t have an account?{' '}
+                <Link
+                  href="/register"
+                  className="text-blue-600 font-semibold hover:text-blue-700 hover:underline transition-colors duration-200 cursor-pointer"
                 >
                   Sign up for free
                 </Link>
@@ -174,8 +233,9 @@ export default function LoginPage() {
           </div>
 
           {/* Footer Text */}
-          <p className="text-center text-white/70 text-sm mt-6">
-            🔒 Your data is secure and encrypted
+          <p className="text-center text-slate-500 text-sm mt-6 flex items-center justify-center gap-2">
+            <ShieldCheck className="w-4 h-4" aria-hidden="true" />
+            <span>Your data is secure and encrypted</span>
           </p>
         </div>
       </div>
